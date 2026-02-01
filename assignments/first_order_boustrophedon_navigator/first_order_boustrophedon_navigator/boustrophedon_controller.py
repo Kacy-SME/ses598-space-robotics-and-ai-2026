@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-
+from first_order_boustrophedon_navigator.msg import ControllerMetrics
+from std_msgs.msg import Header
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
@@ -14,6 +15,10 @@ import matplotlib.pyplot as plt
 class BoustrophedonController(Node):
     def __init__(self):
         super().__init__('lawnmower_controller')
+        
+        # Declare turtle_name parameter FIRST
+        self.declare_parameter('turtle_name', 'turtle1')
+        self.turtle_name = self.get_parameter('turtle_name').value
         
         # Declare parameters with default values
         self.declare_parameters(
@@ -37,9 +42,18 @@ class BoustrophedonController(Node):
         # Add parameter callback
         self.add_on_set_parameters_callback(self.parameter_callback)
         
-        # Create publisher and subscriber
-        self.velocity_publisher = self.create_publisher(Twist, '/turtle1/cmd_vel', 10)
-        self.pose_subscriber = self.create_subscription(Pose, '/turtle1/pose', self.pose_callback, 10)
+        # Create publisher and subscriber FOR THIS TURTLE
+        self.velocity_publisher = self.create_publisher(
+            Twist, 
+            f'/{self.turtle_name}/cmd_vel', 
+            10
+        )
+        self.pose_subscriber = self.create_subscription(
+            Pose, 
+            f'/{self.turtle_name}/pose', 
+            self.pose_callback, 
+            10
+        )
         
         # Lawnmower pattern parameters
         self.waypoints = self.generate_waypoints()
@@ -61,14 +75,16 @@ class BoustrophedonController(Node):
         # Create control loop timer
         self.timer = self.create_timer(0.1, self.control_loop)
         
-        # Add publisher for cross-track error
-        self.error_pub = self.create_publisher(
-            Float64, 
-            'cross_track_error', 
+        # Add publisher for cross-track error FOR THIS TURTLE
+        self.metrics_pub = self.create_publisher(
+            ControllerMetrics, 
+            f'/{self.turtle_name}/controller_metrics', 
             10
         )
         
-        self.get_logger().info('Lawnmower controller started')
+        self.get_logger().info(f'Lawnmower controller started for {self.turtle_name}')
+        self.get_logger().info(f'PD Params: Kp_lin={self.Kp_linear:.3f}, Kd_lin={self.Kd_linear:.3f}, '
+                              f'Kp_ang={self.Kp_angular:.3f}, Kd_ang={self.Kd_angular:.3f}')
         self.get_logger().info(f'Following waypoints: {self.waypoints}')
 
     def generate_waypoints(self):
@@ -112,10 +128,6 @@ class BoustrophedonController(Node):
 
         self.cross_track_errors.append(abs(error))
 
-        error_msg = Float64()
-        error_msg.data = error
-        self.error_pub.publish(error_msg)
-
         return error
 
     def pose_callback(self, msg):
@@ -129,10 +141,12 @@ class BoustrophedonController(Node):
 
     def control_loop(self):
         if self.current_waypoint >= len(self.waypoints):
-            self.get_logger().info('Lawnmower pattern complete')
+            self.get_logger().info(f'{self.turtle_name}: Lawnmower pattern complete')
             if self.cross_track_errors:
                 final_avg_error = sum(self.cross_track_errors) / len(self.cross_track_errors)
-                self.get_logger().info(f'Final average cross-track error: {final_avg_error:.3f}')
+                final_max_error = max(self.cross_track_errors)
+                self.get_logger().info(f'{self.turtle_name}: Average cross-track error: {final_avg_error:.4f}')
+                self.get_logger().info(f'{self.turtle_name}: Maximum cross-track error: {final_max_error:.4f}')
             self.timer.cancel()
             self.plot_data()
             return
@@ -172,8 +186,37 @@ class BoustrophedonController(Node):
 
         if distance < 0.1:
             self.current_waypoint += 1
-            self.get_logger().info(f'Reached waypoint {self.current_waypoint}')
-
+            self.get_logger().info(f'{self.turtle_name}: Reached waypoint {self.current_waypoint}')
+        # Create and publish custom metrics message
+        metrics_msg = ControllerMetrics()
+        metrics_msg.header = Header()
+        metrics_msg.header.stamp = self.get_clock().now().to_msg()
+        metrics_msg.header.frame_id = self.turtle_name
+        
+        # Cross-track error metrics
+        metrics_msg.cross_track_error = abs(cross_track_error)
+        avg_error = (sum(self.cross_track_errors) / len(self.cross_track_errors) 
+                     if self.cross_track_errors else 0.0)
+        max_error = max(self.cross_track_errors) if self.cross_track_errors else 0.0
+        metrics_msg.avg_cross_track_error = avg_error
+        metrics_msg.max_cross_track_error = max_error
+        
+        # Velocity information
+        metrics_msg.linear_velocity = linear_velocity
+        metrics_msg.angular_velocity = angular_velocity
+        
+        # Navigation progress
+        metrics_msg.distance_to_waypoint = distance
+        metrics_msg.current_waypoint = self.current_waypoint
+        metrics_msg.total_waypoints = len(self.waypoints)
+        completion_pct = (self.current_waypoint / len(self.waypoints)) * 100.0
+        metrics_msg.completion_percentage = completion_pct
+        
+        # Additional metrics
+        metrics_msg.path_deviation = abs(cross_track_error)
+        metrics_msg.controller_effort = abs(linear_velocity) + abs(angular_velocity)
+        
+        self.metrics_pub.publish(metrics_msg)
     def parameter_callback(self, params):
         for param in params:
             if param.name == 'Kp_linear':
@@ -196,32 +239,32 @@ class BoustrophedonController(Node):
         # Plot Cross-Track Error
         plt.figure()
         plt.plot(self.cross_track_errors)
-        plt.title("Cross-Track Error Over Time")
+        plt.title(f"Cross-Track Error Over Time - {self.turtle_name}")
         plt.xlabel("Time Step")
         plt.ylabel("Error")
-        plt.savefig("cross_track_error.png")
+        plt.savefig(f"cross_track_error_{self.turtle_name}.png")
 
         # Plot Trajectory
         plt.figure()
         plt.plot(trajectory[:, 0], trajectory[:, 1], label="Trajectory")
         plt.scatter([wp[0] for wp in self.waypoints], [wp[1] for wp in self.waypoints], c='red', label="Waypoints")
-        plt.title("Trajectory Plot")
+        plt.title(f"Trajectory Plot - {self.turtle_name}")
         plt.xlabel("X")
         plt.ylabel("Y")
         plt.legend()
-        plt.savefig("trajectory.png")
+        plt.savefig(f"trajectory_{self.turtle_name}.png")
 
         # Plot Velocity Profiles
         plt.figure()
         plt.plot(velocities[:, 0], label="Linear Velocity")
         plt.plot(velocities[:, 1], label="Angular Velocity")
-        plt.title("Velocity Profiles")
+        plt.title(f"Velocity Profiles - {self.turtle_name}")
         plt.xlabel("Time Step")
         plt.ylabel("Velocity")
         plt.legend()
-        plt.savefig("velocity_profiles.png")
+        plt.savefig(f"velocity_profiles_{self.turtle_name}.png")
 
-        self.get_logger().info("Plots saved as PNG files.")
+        self.get_logger().info(f"Plots saved for {self.turtle_name}")
 
 def main(args=None):
     rclpy.init(args=args)
