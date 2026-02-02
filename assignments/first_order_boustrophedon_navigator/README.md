@@ -29,12 +29,6 @@ A Proportional-Derivative (PD) controller provides feedback control through two 
 - **Proportional (P) term:** Generates control effort proportional to the current error - drives the system toward the setpoint
 - **Derivative (D) term:** Generates control effort proportional to the rate of change of error - provides damping to prevent oscillations
 
-PD control is well-suited for trajectory tracking because:
-1. P term ensures pursuit of waypoints
-2. D term prevents overshoot and oscillations
-3. No integral term needed (no steady-state error in position tracking)
-4. Fast response for dynamic path following
-
 ### 3.2 Control Equations
 
 **Linear Velocity Control:**
@@ -73,7 +67,7 @@ e_angular = atan2(Δy, Δx) - θ_current
 - Time step calculation: `dt = (current_time - self.prev_time).nanoseconds / 1e9` (line 94)
 
 **Why Derivatives are Approximations:**
-The derivative is an approximation because the control loop runs at discrete time intervals (10 Hz in this implementation), not continuously. True derivatives require infinitesimally small Δt; our finite differences over Δt=0.1s provide accurate-enough approximations for effective control.
+The derivative is an approximation because the control loop runs at discrete time intervals (10 Hz in this implementation), not continuously. True derivatives require infinitesimally small Δt; the finite differences over Δt=0.1s provide accurate-enough approximations for effective control.
 
 ### 3.3 Bayesian Optimization
 
@@ -146,7 +140,7 @@ The Gaussian Process (GP) builds a probabilistic model of the objective function
 - **Total evaluations:** 36 (9 iterations × 4 parallel turtles)
 - **Initial baseline:** Kp=1.0, Kd=0.1 (default starting point for all parameters)
 - **Convergence:** Best objective stabilized at iteration 4 (0.0925)
-- **Evaluation time:** ~30 seconds per turtle for full pattern completion
+- **Evaluation time:** ~30 seconds per turtle for full pattern completion, though some did not finish, in which case values of 10.0                           were input into the Optimization prompt
 
 ### 5.3 Results Summary
 
@@ -161,7 +155,6 @@ Kd_angular = 0.2176
 **Performance:**
 - Average cross-track error: **0.0523 units** ✓
 - Maximum cross-track error: **0.1864 units** ✓
-- **Exceeds requirement (0.2 units) by 3.8×**
 
 **Key Observations:**
 - Kp_angular saturated at upper bound (10.0) → aggressive heading correction optimal
@@ -251,17 +244,14 @@ During early exploration (iterations 1-3), some turtles with low `Kp_linear` val
   ```
 - **Coupled dynamics:** When rotation rate exceeds linear velocity, the turtle turns faster than it advances, creating a limit cycle
 
-**Physical Interpretation:** 
-Like driving with minimal throttle but aggressive steering - the vehicle spins rather than progresses.
-
-**Lesson Learned:** 
+**Lesson I Learned:** 
 For trajectory tracking with coupled dynamics, proportional gains must be balanced such that linear velocity dominates during approach. Optimal ratio: Kp_linear ≈ Kp_angular.
 
 **Convergence Plateau (Iterations 4-9):**
 
 No improvement after iteration 4 - best objective remained at 0.0925.
 
-**Why This is Expected:**
+**This is Expected:**
 1. **Optimal region identified:** GP found near-global optimum early
 2. **Parameter saturation:** Kp_angular hit upper bound, limiting exploration
 3. **Smooth landscape:** Few local minima enabled fast convergence
@@ -413,32 +403,15 @@ Photos were captured during the optimization process, showing the three distinct
 - **Parameter sensitivity:** Small changes (8.5→10.0 for Kp_angular) yield noticeable improvements
 - **Repeatability:** Similar parameters across turtles yield similar performance (validates GP model)
 
-## 9. Future Improvements
-
-**Control Enhancements:**
-- Implement full PID (add integral term) for steady-state error elimination
-- Adaptive gains based on error magnitude or trajectory curvature
-- Feedforward control for predictable trajectory sections
-
-**Optimization Extensions:**
-- Test on varied pattern sizes and complexities
-- Multi-objective optimization (error vs. completion time)
-- Transfer learning: use learned parameters on real TurtleBot
-
-**Real Robot Deployment:**
-- Account for actuator saturation and dynamics
-- Incorporate sensor noise models
-- Safety constraints on velocity limits
-
-## 10. References & Acknowledgments
+## 9. References & Acknowledgments
 
 - **Course Materials:** SES 598 Space Robotics and AI, Bayesian Optimization lecture
 - **Libraries:** scikit-optimize (Bayesian optimization), ROS2 (robot framework)
 - **Documentation:** ROS2 docs, scikit-optimize API reference
 
-## 12. Extra Credit: Custom ROS2 Performance Message
+## 11. Extra Credit: Custom ROS2 Performance Message
 
-### 12.1 Custom Message Definition
+### 11.1 Custom Message Definition
 
 Created a custom ROS2 message type `ControllerMetrics.msg` to publish comprehensive performance data:
 
@@ -467,7 +440,7 @@ float64 path_deviation                 # Instantaneous deviation from ideal path
 float64 controller_effort              # Combined control effort metric (units/sec)
 ```
 
-### 12.2 Message Field Descriptions
+### 11.2 Message Field Descriptions
 
 | Field | Type | Purpose |
 |-------|------|---------|
@@ -484,7 +457,7 @@ float64 controller_effort              # Combined control effort metric (units/s
 | `path_deviation` | float64 | Alias for cross_track_error (semantic clarity) |
 | `controller_effort` | float64 | √(v² + ω²) - combined velocity magnitude |
 
-### 12.3 Implementation
+### 11.3 Implementation
 
 **Publisher Setup:**
 ```python
@@ -523,7 +496,7 @@ metrics_msg.controller_effort = math.sqrt(linear_velocity**2 + angular_velocity*
 self.metrics_pub.publish(metrics_msg)
 ```
 
-### 12.4 Example Message Output
+### 11.4 Example Message Output
 
 Sample message at 95% completion:
 
@@ -546,7 +519,7 @@ path_deviation: 0.003216981887817383
 controller_effort: 1.1677343605194317
 ```
 
-### 12.5 Usage & Benefits
+### 11.5 Usage & Benefits
 
 **Monitoring Performance:**
 ```bash
@@ -557,18 +530,11 @@ ros2 topic echo /turtle1/controller_metrics
 ros2 topic echo /turtle1/controller_metrics/completion_percentage
 ```
 
-**Benefits Demonstrated:**
 1. **ROS2 Interface Creation:** Custom `.msg` file with multiple data types
 2. **Message Publishing Pattern:** Proper header usage, consistent publication rate
 3. **Data Aggregation:** Running statistics (avg, max) computed in real-time
 4. **Semantic Clarity:** Purpose-built metrics vs. generic float messages
 5. **Analysis Support:** Single message contains all data needed for post-processing
-
-**Applications:**
-- Real-time dashboards showing completion percentage and error trends
-- Automatic detection of performance degradation (max_error threshold monitoring)
-- Data logging for offline analysis and parameter tuning validation
-- Multi-robot comparison (parallel turtle evaluation in Bayesian optimization)
 
 This custom message demonstrates understanding of ROS2's type system, interface packages, and message-passing architecture while providing practical value for controller development and debugging.
 
