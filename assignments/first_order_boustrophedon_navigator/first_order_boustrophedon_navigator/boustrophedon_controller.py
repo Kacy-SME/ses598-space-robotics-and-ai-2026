@@ -21,16 +21,11 @@ class BoustrophedonController(Node):
         self.turtle_name = self.get_parameter('turtle_name').value
         
         # Declare parameters with default values
-        self.declare_parameters(
-            namespace='',
-            parameters=[
-                ('Kp_linear', 1.0),
-                ('Kd_linear', 0.1),
-                ('Kp_angular', 1.0),
-                ('Kd_angular', 0.1),
-                ('spacing', 0.5)
-            ]
-        )
+        self.declare_parameter('Kp_linear', 1.0)
+        self.declare_parameter('Kd_linear', 0.1)
+        self.declare_parameter('Kp_angular', 1.0)
+        self.declare_parameter('Kd_angular', 0.1)
+        self.declare_parameter('spacing', 0.5)
 
         # Get initial parameter values
         self.Kp_linear = self.get_parameter('Kp_linear').value
