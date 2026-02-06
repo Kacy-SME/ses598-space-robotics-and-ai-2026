@@ -1,8 +1,8 @@
 /**:
   ros__parameters:
     lawnmower_controller:
-      Kp_linear: 10.0
-      Kd_linear: 0.1
-      Kp_angular: 5.0
-      Kd_angular: 0.2
-      spacing: 1.0
+      Kp_linear: 8.9183
+      Kd_linear: 0.8466
+      Kp_angular: 10.0
+      Kd_angular: 0.2176
+      spacing: 0.5
