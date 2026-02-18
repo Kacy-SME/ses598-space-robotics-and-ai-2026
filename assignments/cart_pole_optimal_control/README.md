@@ -286,7 +286,7 @@ The cart drifts from 0 to 2.5m over 7.5 seconds (top left) while the pole angle 
 - Can handle nonlinearities and partial observability
 
 **DQN Limitations:**
-- Discrete action space (±15N only) fundamentally limits fine positioning
+- Discrete action space (±15N only) fundamentally limits fine positioning, continuous-action variants would be the next logical step to improve performance
 - Earthquake forces up to ±60N often exceed ±15N control authority
 - ~8,000 network weights with no physical interpretation (black box)
 - Requires 150 episodes of training (thousands of timesteps)
