@@ -171,7 +171,7 @@ With the assignment default parameters `Q = diag([1, 1, 10, 10])` and `R = [[0.1
 
 The optimizer ran 5 random samples followed by 20 Bayesian iterations. The best score was found at iteration 9 and refined slightly through iteration 14 before converging.
 
-![LQR Bayesian Optimization Results](lqr_optimization_results.png)
+![LQR Bayesian Optimization Results](figures/lqr_optimization_results.png)
 
 The four plots show:
 - **Optimization Convergence (top left):** scores fluctuate between 231 and 238 across 25 evaluations, with the best score of 237.58 hit at iteration 9
@@ -226,7 +226,7 @@ Maximum pendulum angle:       12.042 deg (good throughout, spikes at failure)
 Average control effort:       1.524 N
 ```
 
-![Optimized LQR Performance](iteration_2.png)
+![Optimized LQR Performance](figures/iteration_2.png)
 
 Cart position stays within 0.242m of center throughout (vs 0.6m+ with defaults), oscillating around zero rather than drifting. The control force is smooth and small for the full run (under 10N) until the final spike at failure. The pole remains near vertical the entire time before a large earthquake disturbance causes sudden failure at 7.69 seconds.
 
@@ -245,13 +245,13 @@ Solved at episode 150 (threshold: 450)
 Best average reward: 652.88
 ```
 
-![DQN Training Progress](dqn_iteration_1.png)
+![DQN Training Progress](figures/dqn_iteration_1.png)
 
 The three plots show reward climbing steadily from ~100 at episode 50 to 652 at episode 150 (top), episode length growing from ~20 steps to ~200 steps as the agent learns to survive longer (middle), and epsilon decaying from 1.0 to 0.05 by episode 80 after which learning is entirely exploitation-driven (bottom). The solve threshold of 450 is crossed around episode 130 on the smoothed curve.
 
 ### DQN Evaluation in ROS2/Gazebo
 
-![DQN Evaluation in ROS2](dqn_lqr_baseline.png)
+![DQN Evaluation in ROS2](figures/dqn_lqr_baseline.png)
 
 The cart drifts from 0 to 2.5m over 7.5 seconds (top left) while the pole angle stays near 0 degrees throughout (top right). The control force plot (bottom right) clearly shows bang-bang behavior: the DQN can only apply +15N or -15N, creating square wave switching. This is fundamentally different from the LQR's smooth continuous control and explains why the cart cannot be kept centered.
 
