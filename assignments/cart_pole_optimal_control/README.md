@@ -1,4 +1,4 @@
-# Cart-Pole Optimal Control Under Seismic Disturbances
+# Cart-Pole Optimal Control
 
 **SES598 Space Robotics and AI | Arizona State University**  
 **Kacy | February 2026**
