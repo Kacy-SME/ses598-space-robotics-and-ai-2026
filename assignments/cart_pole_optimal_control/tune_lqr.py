@@ -36,11 +36,11 @@ class LQRBayesianOptimizer:
         # Search space bounds (log scale for better coverage)
         # [q_x, q_xdot, q_theta, q_thetadot, r]
         self.bounds = np.array([
-            [0.1, 50.0],   # q_x: cart position weight
-            [0.1, 10.0],   # q_xdot: cart velocity weight
-            [1.0, 100.0],  # q_theta: pole angle weight (most important)
-            [1.0, 100.0],  # q_thetadot: pole angular velocity weight
-            [0.01, 2.0],   # r: control cost
+            [1.0, 50.0],   # q_x: cart position weight
+            [1.0, 50.0],   # q_xdot: cart velocity weight
+            [10.0, 200.0],  # q_theta: pole angle weight (most important)
+            [10.0, 200.0],  # q_thetadot: pole angular velocity weight
+            [0.1, 10.0],   # r: control cost
         ])
 
         # GP model
@@ -66,8 +66,11 @@ class LQRBayesianOptimizer:
             return K, Q, R
         except Exception:
             return None, None, None
+    def simulate_performance(self, params, n_runs=3, **kwargs):
+        scores = [self._single_run(params, **kwargs) for _ in range(n_runs)]
+        return np.mean(scores)
 
-    def simulate_performance(self, params, dt=0.02, duration=120.0,
+    def _single_run(self, params, dt=0.02, duration=120.0,
                               earthquake_amp=15.0, freq_range=(0.5, 4.0)):
         """
         Simulate cart-pole with given LQR parameters.
@@ -273,7 +276,7 @@ class LQRBayesianOptimizer:
 if __name__ == '__main__':
     np.random.seed(42)
     optimizer = LQRBayesianOptimizer()
-    best_params = optimizer.optimize(n_initial=5, n_iterations=20)
+    best_params = optimizer.optimize(n_initial=10, n_iterations=75)
 
     print("\nCopy these into lqr_controller.py:")
     print(f"self.Q = np.diag([{best_params[0]:.3f}, {best_params[1]:.3f}, "

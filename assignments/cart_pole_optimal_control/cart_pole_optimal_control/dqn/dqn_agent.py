@@ -20,7 +20,7 @@ class QNetwork(nn.Module):
         return torch.tanh(self.fc3(x)) if self.continuous else self.fc3(x)
 
 class DQNAgent:
-    def __init__(self, state_dim, action_dim, gamma=0.99, lr=1e-3, epsilon=1.0, min_epsilon=0.1, decay=0.9999, continuous=False):
+    def __init__(self, state_dim, action_dim, gamma=0.99, lr=1e-3, epsilon=1.0, min_epsilon=0.05, decay=0.995, continuous=False):
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.gamma = gamma

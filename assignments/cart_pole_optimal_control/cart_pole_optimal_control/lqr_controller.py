@@ -35,8 +35,8 @@ class CartPoleLQRController(Node):
         ])
         
         # LQR cost matrices
-        self.Q = np.diag([15.290, 9.723, 73.846, 61.844])  # State cost
-        self.R = np.array([[1.8824]])  # Control cost
+        self.Q = np.diag([31.513, 49.947, 60.977, 186.931])  # State cost
+        self.R = np.array([[0.1648]])  # Control cost
         
         # Compute LQR gain matrix
         self.K = self.compute_lqr_gain()
@@ -101,6 +101,7 @@ class CartPoleLQRController(Node):
 
     def earthquake_callback(self, msg):
         """Store earthquake force values."""
+        self.current_earthquake_force = msg.data
         if not hasattr(self, 'earthquake_forces'):
             self.earthquake_forces = deque()  # Ensure it's initialized
 
@@ -138,7 +139,8 @@ class CartPoleLQRController(Node):
             force = float(u[0])
             
             msg = Float64()
-            msg.data = force
+            earthquake_force = self.current_earthquake_force if hasattr(self, 'current_earthquake_force') else 0.0
+            msg.data = force + earthquake_force
             self.cart_cmd_pub.publish(msg)
             
             self.last_control = force
