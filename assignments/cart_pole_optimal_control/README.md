@@ -62,7 +62,11 @@ where:
   noise ~ Normal(0, 1.5)
 ```
 
-This produces forces up to +/-60 N in practice, roughly four times the base amplitude of 15 N.
+Five waves superimposed can constructively interfere to produce peaks up to approximately +/-75 N — five times the base amplitude of 15 N. This makes earthquake rejection the dominant challenge for both controllers.
+
+### Force Architecture
+
+The earthquake generator publishes to `/earthquake_force` for visualization and to `/model/cart_pole/joint/cart_to_base/cmd_force` for Gazebo actuation. The LQR controller subscribes to `/earthquake_force`, computes its control force `u = -Kx`, and publishes the combined total `u + F_eq` to the same Gazebo topic. This ensures the earthquake acts as a true external disturbance that the LQR must overcome, rather than the two publishers racing to overwrite each other.
 
 ---
 
@@ -93,8 +97,6 @@ This is the mathematically optimal linear state feedback for the given Q and R. 
 
 **Connection to eigenvalues:** The ARE ensures all eigenvalues of the closed-loop system `(A - BK)` are in the left half-plane (stable). The Q and R matrices indirectly control how far left these eigenvalues are placed, determining response speed versus control effort trade-off.
 
-It is worth noting the connection between LQR and the Kalman filter. Both solve a Riccati equation of the same form. LQR solves for the optimal control gain given known state, while the Kalman filter solves for the optimal state estimate given noisy measurements. Combining them yields the Linear Quadratic Gaussian (LQG) controller.
-
 ### Default Parameter Analysis
 
 The default parameters provided are:
@@ -104,58 +106,64 @@ Q = np.diag([1.0, 1.0, 10.0, 10.0])  # [x, x_dot, theta, theta_dot]
 R = np.array([[0.1]])
 ```
 
-The pole angle and angular velocity are weighted 10x higher than cart states, which correctly prioritizes keeping the pole upright. The low R of 0.1 allows aggressive control forces.
-
-However, testing showed these defaults cause persistent cart drift until the +/-2.5m limit is hit. The pole stays near vertical but the cart position is not stabilized tightly enough against the large asymmetric earthquake forces. This motivated a systematic parameter search.
+The pole angle and angular velocity are weighted 10x higher than cart states, which correctly prioritizes keeping the pole upright. However, testing showed these defaults cause persistent cart drift until the +/-2.5m limit is hit at approximately 7 seconds. This motivated a systematic parameter search.
 
 ### Bayesian Optimization
 
 Rather than manually tuning the five parameters of Q and R, Bayesian optimization was applied using the same technique from the boustrophedon navigator assignment for PD controller tuning. A Gaussian Process surrogate model with a Matern kernel (nu = 2.5) was fit to observed performance scores, with Expected Improvement as the acquisition function.
 
-**Search space:**
+**Search space (widened from initial run to explore higher Q_theta and Q_theta_dot ranges):**
 
 | Parameter | Lower Bound | Upper Bound |
 |-----------|-------------|-------------|
-| Q_x | 0.1 | 50.0 |
-| Q_x_dot | 0.1 | 10.0 |
-| Q_theta | 1.0 | 100.0 |
-| Q_theta_dot | 1.0 | 100.0 |
-| R | 0.01 | 2.0 |
+| Q_x | 1.0 | 50.0 |
+| Q_x_dot | 1.0 | 50.0 |
+| Q_theta | 10.0 | 200.0 |
+| Q_theta_dot | 10.0 | 200.0 |
+| R | 0.1 | 10.0 |
 
-**Objective function** (simulated via Euler integration at 20ms timesteps):
+**Objective function** (simulated via Euler integration at 20ms timesteps, averaged over 3 runs to reduce earthquake randomness noise):
 
 ```
 score = 2*t_stable - 5*x_max - 0.5*theta_max - 0.1*|u|_avg - 3*x_rms
 ```
 
-The optimization ran for 5 random initialization samples followed by 20 Bayesian iterations (25 total evaluations).
+The optimization ran for 10 random initialization samples followed by 75 Bayesian iterations (85 total evaluations). The theoretical maximum score is approximately 240 (surviving the full 120s simulation with zero penalties).
 
 **Optimal parameters found:**
 
 ```python
-Q = np.diag([15.290, 9.723, 73.846, 61.844])
-R = np.array([[1.8824]])
+Q = np.diag([31.513, 49.947, 60.977, 186.931])
+R = np.array([[0.1648]])
 ```
+
+Best score: **238.27 / 240 theoretical maximum** — near-perfect performance in simulation.
 
 **Parameter importance findings:**
 
-- Cart velocity (Q_x_dot = 9.723) had the strongest positive correlation with performance. Damping cart velocity is more important than penalizing position alone because an undamped cart can accelerate into the wall even if its current position looks safe.
-- Pole angular velocity (Q_theta_dot = 61.844) is nearly as important. Damping rotational momentum before it builds prevents the sudden instability seen with default parameters.
-- High Q_x was negatively correlated with score because too aggressive a position penalty causes the cart to fight the earthquake forces rather than absorb them.
-- The optimal R = 1.8824 is much higher than the default 0.1. Smoother control is more effective than aggressive responses under oscillatory disturbances.
+- **Q_thetadot (186.9) dominates** the optimal solution — heavily penalizing angular velocity prevents the rotational momentum buildup that causes sudden instability under large earthquake spikes.
+- **R is very low (0.165)** — the controller is permitted aggressive force responses, which is necessary to counter earthquake peaks of ±75N.
+- **R showed the strongest negative correlation (-0.63)** with score, confirming that high control cost is the single biggest performance limiter under large disturbances.
+- The best solution was found at **iteration 13** and held through all remaining 62 iterations, indicating well-converged search.
+
+**Resulting LQR gain matrix:**
+
+```
+K = [[-13.828, -24.207, -320.677, -69.496]]
+```
+
+The large -320.7 weight on pole angle reflects the high Q_theta value, making the controller highly sensitive to any pole deviation.
 
 ### LQR Performance Results
 
 | Metric | Assignment Defaults | Bayesian Optimized |
 |--------|-------------------|---------------------|
-| Q matrix | [1, 1, 10, 10] | [15.29, 9.72, 73.85, 61.84] |
-| R value | 0.1 | 1.88 |
-| Stable Duration | ~7.0 s | 7.69 s (+10%) |
-| Max Cart Displacement | 0.6+ m | 0.242 m (-60%) |
-| Avg Control Effort | Variable | 1.524 N |
-| Pole Angle Control | Excellent | Excellent |
-
-The optimized parameters significantly improved cart position control while maintaining excellent pole angle stability. Both configurations show sudden failure caused by large earthquake spikes rather than gradual degradation.
+| Q matrix | [1, 1, 10, 10] | [31.51, 49.95, 60.98, 186.93] |
+| R value | 0.1 | 0.165 |
+| Stable Duration | ~7.0 s | **~115 s** |
+| Max Cart Displacement | 0.6+ m | ~0.05 m |
+| Pole Angle Range | ±5° then failure | ±5° for 115s |
+| Failure Mode | Cart drift to limit | Large earthquake spike |
 
 ---
 
@@ -163,97 +171,71 @@ The optimized parameters significantly improved cart position control while main
 
 ### Default LQR Parameters
 
-![Default LQR Performance](iteration_1.png)
+![Default LQR Performance](figures/iteration_1.png)
 
-With the assignment default parameters `Q = diag([1, 1, 10, 10])` and `R = [[0.1]]`, the pole angle is well controlled (near 0 degrees throughout) but the cart drifts steadily to 0.6m before sudden failure at ~7 seconds. The control force profile shows large transient spikes responding to initial earthquake hits then settles to small corrections, but the cart never returns to center. This motivated the Bayesian optimization run.
+With the assignment default parameters `Q = diag([1, 1, 10, 10])` and `R = [[0.1]]`, the pole angle is well controlled (near 0 degrees throughout) but the cart drifts steadily to 0.6m before sudden failure at approximately 7 seconds. This motivated the Bayesian optimization run.
 
 ### Bayesian Optimization
 
-The optimizer ran 5 random samples followed by 20 Bayesian iterations. The best score was found at iteration 9 and refined slightly through iteration 14 before converging.
+The optimizer ran 10 random samples followed by 75 Bayesian iterations. The best score (238.27) was found at iteration 13 and held through all remaining iterations.
 
-![LQR Bayesian Optimization Results](figures/lqr_optimization_results.png)
+![LQR Bayesian Optimization Results](figures/lqr_top_v2.png)
 
 The four plots show:
-- **Optimization Convergence (top left):** scores fluctuate between 231 and 238 across 25 evaluations, with the best score of 237.58 hit at iteration 9
-- **Best Score Progress (top right):** rapid improvement in the first 3 iterations then gradual refinement. The best solution was found early and only marginally improved afterward
-- **Parameter Importance (bottom left):** Q_xdot has the strongest positive correlation with score (+0.37), followed by Q_thetadot (+0.28); Q_x and R are negatively correlated, meaning over-penalizing position or using too-low control cost hurts performance
-- **Optimal Q Weights (bottom right):** Q_theta (73.85) and Q_thetadot (61.84) dominate, with Q_x (15.29) and Q_xdot (9.72) providing moderate cart stabilization
+- **Optimization Convergence (top left):** scores fluctuate between 230 and 238 across 85 evaluations, with the best score of 238.27 found at iteration 13
+- **Best Score Progress (top right):** rapid improvement in the first 25 iterations then complete convergence — the solution was found early and never improved upon
+- **Parameter Importance (bottom left):** Q_x and Q_xdot positively correlated with score; R strongly negatively correlated (-0.63), meaning high control cost is the single biggest performance limiter
+- **Optimal Q Weights (bottom right):** Q_thetadot (186.9) dominates by a wide margin, with Q_theta (61.0), Q_xdot (50.0), and Q_x (31.5) providing secondary stabilization
 
-Full optimization log:
+Selected optimization log:
 
 ```
-Phase 1: Random exploration (5 samples)
-  Sample 1: Q=[18.79,9.51,73.47,60.27], R=0.320 -> Score=235.87
-  Sample 2: Q=[44.50,4.46,90.22,75.32], R=0.982 -> Score=235.51
-  Sample 3: Q=[0.13,6.12,36.85,75.48],  R=0.757 -> Score=235.34
-  Sample 4: Q=[16.10,9.62,59.38,78.95], R=0.100 -> Score=237.50  <-- best random
-  Sample 5: Q=[22.06,5.50,77.50,34.76], R=1.500 -> Score=235.73
+Phase 1: Random exploration (10 samples)
+  Sample 1:  Q=[19.35,47.59,149.08,123.75], R=1.645 -> Score=235.32
+  Sample 10: Q=[34.91,43.74,191.19,181.05], R=1.922 -> Score=236.34
 
-Phase 2: Bayesian optimization (20 iterations)
-  Iter  1: Q=[8.75,7.69,58.78,75.77],   R=1.310 -> Score=236.13
-  Iter  2: Q=[14.26,7.46,60.62,79.18],  R=1.969 -> Score=235.97
-  Iter  3: Q=[21.16,0.65,69.16,20.33],  R=0.942 -> Score=233.47
-  Iter  4: Q=[20.76,9.40,60.48,81.81],  R=1.908 -> Score=235.45
-  Iter  5: Q=[20.68,7.75,57.35,75.66],  R=1.858 -> Score=233.91
-  Iter  6: Q=[17.69,6.17,61.92,80.24],  R=0.720 -> Score=235.70
-  Iter  7: Q=[20.96,7.06,72.31,60.53],  R=1.668 -> Score=233.89
-  Iter  8: Q=[10.12,6.87,61.87,82.34],  R=0.548 -> Score=236.41
-  Iter  9: Q=[15.29,9.72,73.85,61.84],  R=1.882 -> Score=237.58  <-- BEST
-  Iter 10: Q=[11.07,6.34,59.60,86.73],  R=0.913 -> Score=234.86
-  Iter 11: Q=[17.65,7.96,74.31,58.77],  R=1.037 -> Score=233.72
-  Iter 12: Q=[46.36,5.47,1.92,56.07],   R=0.765 -> Score=235.08
-  Iter 13: Q=[25.88,5.72,68.01,58.54],  R=0.584 -> Score=235.23
-  Iter 14: Q=[47.42,5.33,89.84,30.21],  R=0.074 -> Score=236.95
-  Iter 15: Q=[29.63,3.00,20.02,54.34],  R=0.585 -> Score=235.33
-  Iter 16: Q=[47.59,3.85,81.12,27.62],  R=1.064 -> Score=230.58
-  Iter 17: Q=[36.03,0.46,80.68,44.19],  R=1.832 -> Score=232.97
-  Iter 18: Q=[40.36,0.47,12.77,18.03],  R=0.123 -> Score=237.14
-  Iter 19: Q=[26.71,3.65,27.96,49.76],  R=1.956 -> Score=235.57
-  Iter 20: Q=[11.46,9.43,95.00,85.00],  R=0.476 -> Score=236.14
+Phase 2: Bayesian optimization (75 iterations)
+  Iter  1: Q=[37.92,8.29,181.04,83.38],   R=0.253 -> Score=237.33 (Best=237.33)
+  Iter 10: Q=[40.61,24.28,176.18,37.51],  R=0.160 -> Score=237.40 (Best=237.40)
+  Iter 13: Q=[31.51,49.95,60.98,186.93],  R=0.165 -> Score=238.27 (Best=238.27)  <-- BEST
+  Iter 75: Q=[20.73,37.03,165.58,42.55],  R=1.583 -> Score=234.91 (Best=238.27)
 
-OPTIMAL: Q = diag([15.290, 9.723, 73.846, 61.844]),  R = [[1.8824]],  Score = 237.58
+OPTIMAL: Q = diag([31.513, 49.947, 60.977, 186.931]),  R = [[0.1648]],  Score = 238.27
 ```
 
 ### Optimized LQR in ROS2/Gazebo
 
-Running with the Bayesian-optimized parameters in the full simulation:
+Running with the Bayesian-optimized parameters in the full ROS2/Gazebo simulation with properly combined forces:
 
-```
-LQR Gain Matrix: [[-2.850, -4.271, -87.138, -18.645]]
-Duration of stable operation: 7.69 s
-Maximum cart displacement:    0.242 m
-Maximum pendulum angle:       12.042 deg (good throughout, spikes at failure)
-Average control effort:       1.524 N
-```
+![Optimized LQR Performance](figures/lqr_v3.png)
 
-![Optimized LQR Performance](figures/iteration_2.png)
+The cart stays within approximately ±0.05m of center for the entire run — essentially perfect position control. The pole angle remains within ±5° throughout. Both the cart and pole maintain stability until a large earthquake spike at approximately 115 seconds overwhelms the controller and drives the cart past the +2.5m limit. The control forces reach up to ±100N as the controller fights ±75N earthquake peaks.
 
-Cart position stays within 0.242m of center throughout (vs 0.6m+ with defaults), oscillating around zero rather than drifting. The control force is smooth and small for the full run (under 10N) until the final spike at failure. The pole remains near vertical the entire time before a large earthquake disturbance causes sudden failure at 7.69 seconds.
-
-The gain matrix shows the controller is most sensitive to pole angle (87.1) and pole angular velocity (18.6), consistent with the high Q weights found by the optimizer.
+This is the same failure mode seen with the default parameters (sudden instability from earthquake spike rather than gradual drift), just delayed by more than 100 seconds.
 
 ### DQN Training
 
-Training converged in 150 episodes:
+The improved training script fixed three issues present in the original: the `force_mag` accumulation bug that caused earthquake forces to grow unbounded, inadequate action force magnitude relative to earthquake peaks, and a reward function with poor gradients near failure. Training converged in 120 episodes:
 
 ```
-Episode   50 | Avg Reward (100ep):  109.79 | Steps: 119 | epsilon: 0.4744
-Episode  100 | Avg Reward (100ep):  335.89 | Steps: 199 | epsilon: 0.0500
-Episode  150 | Avg Reward (100ep):  652.88 | Steps: 242 | epsilon: 0.0500
+Episode   10 | Avg Reward (100ep):    ~20   | ε: 1.00
+Episode   30 | Avg Reward (100ep):    ~100  | ε: 0.05  (epsilon reached minimum)
+Episode  110 | Avg Reward (100ep):   415.17 | Steps:  187 | ε: 0.0500
+Episode  120 | Avg Reward (100ep):   474.90 | Steps:  183 | ε: 0.0500
 
-Solved at episode 150 (threshold: 450)
-Best average reward: 652.88
+Solved at episode 120 (threshold: 450)
+Best average reward: 474.90
 ```
 
-![DQN Training Progress](figures/dqn_iteration_1.png)
+![DQN Training Progress](cart_pole_optimal_control/dqn/dqn_train_v3.png)
 
-The three plots show reward climbing steadily from ~100 at episode 50 to 652 at episode 150 (top), episode length growing from ~20 steps to ~200 steps as the agent learns to survive longer (middle), and epsilon decaying from 1.0 to 0.05 by episode 80 after which learning is entirely exploitation-driven (bottom). The solve threshold of 450 is crossed around episode 130 on the smoothed curve.
+Epsilon decayed to 0.05 by episode 30 (vs episode 500+ in the original due to `decay=0.9999` per step). Once exploitation began, reward climbed steadily from ~100 to 474 by episode 120. The agent solved the task 30 episodes faster than the previous implementation.
 
 ### DQN Evaluation in ROS2/Gazebo
 
-![DQN Evaluation in ROS2](figures/dqn_lqr_baseline.png)
+![DQN Evaluation](cart_pole_optimal_control/dqn/dqn_lqr_v2.png)
 
-The cart drifts from 0 to 2.5m over 7.5 seconds (top left) while the pole angle stays near 0 degrees throughout (top right). The control force plot (bottom right) clearly shows bang-bang behavior: the DQN can only apply +15N or -15N, creating square wave switching. This is fundamentally different from the LQR's smooth continuous control and explains why the cart cannot be kept centered.
+The DQN lasted approximately 47 seconds before the cart hit the +2.5m limit. The pole angle was well controlled (within ±5°) throughout the run, matching LQR pole performance. However, the cart drifted steadily from center to the boundary due to the discrete action constraint. The control force plot shows bang-bang behavior — the DQN can only apply exactly +15N or -15N, producing square wave switching. This is fundamentally different from LQR's smooth proportional control and explains the cart positioning failure.
 
 ---
 
@@ -261,37 +243,28 @@ The cart drifts from 0 to 2.5m over 7.5 seconds (top left) while the pole angle 
 
 | Metric | LQR (Optimized) | DQN |
 |--------|----------------|-----|
-| Stable Duration | 7.69 s | ~7.5 s |
-| Max Cart Displacement | 0.242 m | 2.5 m (limit hit) |
-| Pole Angle Control | Excellent | Excellent |
-| Control Type | Continuous smooth | Discrete bang-bang |
-| Avg Control Effort | 1.524 N | 15 N (fixed) |
-| Training Required | None (analytical) | 150 episodes |
+| Stable Duration | **~115 s** | ~47 s |
+| Max Cart Displacement | **~0.05 m** | 2.5 m (limit hit) |
+| Pole Angle Control | ±5° | ±5° |
+| Control Type | Continuous, proportional | Discrete, bang-bang |
+| Avg Control Effort | Proportional to error | Fixed ±15N |
+| Training Required | None (analytical) | 120 episodes |
 | Parameter Count | 5 (Q + R values) | ~8,000 (network weights) |
 | Interpretability | High (physical meaning) | Low (black box) |
-| Disturbance Awareness | No (reactive) | Yes (earthquake in state) |
+| Disturbance Awareness | Reactive only | Earthquake in state vector |
+| Failure Mode | Earthquake spike at 115s | Cart drift at 47s |
 
 ### Discussion
 
-**LQR Advantages:**
-- Continuous force output enables precise cart positioning (0.242m vs 2.5m for DQN)
-- Mathematically optimal control determined by the Riccati equation
-- Smooth, energy-efficient responses - Bayesian-optimized R=1.88 produces less reactive control under oscillatory disturbances
-- High interpretability - each element of gain matrix K has direct physical meaning as sensitivity to a state variable
-- Zero training time - analytical solution from Q and R matrices
+Both controllers kept the pole upright equally well — the difference is entirely in cart position control, which comes down to the fundamental difference between continuous and discrete action spaces.
 
-**DQN Advantages:**
-- Direct earthquake force awareness in augmented state (LQR is purely reactive)
-- Model-free learning - no system dynamics knowledge required
-- Can handle nonlinearities and partial observability
+**LQR advantages:** Continuous force output enables precise cart positioning. The Riccati equation provides mathematical optimality guarantees for the linearized system. Each element of K has direct physical meaning as sensitivity to a state variable. Zero training time — analytical solution from Q and R matrices. Bayesian optimization of Q and R using a GP surrogate found parameters that improved stability from 7s to 115s (a 16x improvement).
 
-**DQN Limitations:**
-- Discrete action space (±15N only) fundamentally limits fine positioning, continuous-action variants would be the next logical step to improve performance
-- Earthquake forces up to ±60N often exceed ±15N control authority
-- ~8,000 network weights with no physical interpretation (black box)
-- Requires 150 episodes of training (thousands of timesteps)
+**DQN advantages:** Direct earthquake force awareness through augmented state — the LQR is purely reactive to resulting state, while the DQN can in principle anticipate disturbances. Model-free learning requires no knowledge of system dynamics. Can handle nonlinearities beyond the linearization region.
 
-**Key Insight:** LQR is more appropriate for this problem because the system dynamics are well understood and the linearization is accurate near the operating point. DQN becomes competitive in high-dimensional, nonlinear, or partially observable systems where analytical control design is intractable. A continuous action variant (DDPG or SAC) would likely close the performance gap significantly.
+**DQN limitations:** Discrete action space (±15N only) fundamentally prevents fine cart positioning. Even with 40N action force, earthquake peaks of ±75N often exceed control authority. A continuous-action variant such as DDPG or SAC would be the natural next step to close the performance gap.
+
+**Key insight:** LQR is the more appropriate controller for this problem because the system dynamics are well understood, the linearization is accurate near the upright equilibrium, and the continuous action space is critical for position control under large disturbances. DQN becomes competitive in high-dimensional, nonlinear, or partially observable systems where analytical control design is intractable.
 
 ---
 
@@ -308,16 +281,16 @@ Input (5) -> FC1 (64, ReLU) -> FC2 (64, ReLU) -> Output (2, Linear)
 The state is augmented with normalized earthquake force:
 
 ```
-s = [cart_pos, cart_vel, pole_angle, pole_ang_vel, F_eq / 15]
+s = [cart_pos, cart_vel, pole_angle, pole_ang_vel, F_eq / (15 * 5)]
 ```
 
-This gives the agent awareness of the current disturbance magnitude, which is not available to the LQR. The two outputs correspond to push left (-15 N) or push right (+15 N).
+Normalization divides by the theoretical peak (15N base × 5 waves = 75N) to keep inputs in a consistent range. The two outputs correspond to push left (-40N) or push right (+40N). Action force was increased from gym's default 10N to 40N to give the agent meaningful authority against ±75N earthquake peaks.
 
 Implementation details:
 - Experience replay buffer: 100,000 transitions
 - Batch size: 64
 - Target network updated every 10 episodes
-- Epsilon decay: 1.0 to 0.05 at rate 0.9995
+- Epsilon decay: 1.0 to 0.05 at rate 0.995 per step (reaches minimum ~episode 30)
 
 ### Reward Function
 
@@ -325,15 +298,17 @@ Implementation details:
 r(s, done) = r_alive + r_pole + r_cart + r_vel
 
 r_alive = 1.0
-r_pole  = 2 * cos(theta)
-r_cart  = exp(-0.5 * (x / 2.4)^2)
-r_vel   = -0.01*|x_dot| - 0.005*|theta_dot|
-r(done) = -10.0
+r_pole  = 2 * cos(theta)                      (smooth angle reward, max 2.0 at theta=0)
+r_cart  = exp(-0.5 * (x / 2.4)^2)            (Gaussian centering, max 1.0 at center)
+r_vel   = -0.01*|x_dot| - 0.005*|theta_dot|  (velocity penalty)
+r(done) = -10.0                               (termination penalty)
 ```
+
+The cosine pole reward provides smooth gradients near vertical. The Gaussian cart reward emphasizes centering without harshly penalizing moderate displacements. The heavy termination penalty discourages premature failure.
 
 ### Training
 
-Training used gymnasium's CartPole-v1 environment for speed. The earthquake disturbance was approximated by modifying the cart state at each timestep. A new random earthquake profile was generated each episode to prevent overfitting.
+Training used gymnasium's CartPole-v1 environment for speed — thousands of episodes in minutes versus hours for full ROS2/Gazebo simulation. The earthquake disturbance was applied as a physics-correct state perturbation at each timestep (`v += F*dt`, `x += 0.5*F*dt^2`) rather than modifying `force_mag`. A new random earthquake profile was generated each episode to prevent overfitting to a specific disturbance pattern.
 
 ---
 
@@ -342,7 +317,14 @@ Training used gymnasium's CartPole-v1 environment for speed. The earthquake dist
 ### LQR Controller
 
 ```bash
-ros2 launch cart_pole_optimal_control cart_pole_rviz.launch.py
+# Terminal 1
+ros2 launch cart_pole_optimal_control cart_pole.launch.py
+
+# Terminal 2
+ros2 run cart_pole_optimal_control lqr_controller
+
+# Terminal 3
+ros2 run cart_pole_optimal_control earthquake_force_generator
 ```
 
 ### Bayesian Optimization
@@ -363,22 +345,26 @@ python3 dqn_train.py
 
 ```bash
 # Terminal 1
-ros2 launch cart_pole_optimal_control cart_pole_rviz.launch.py
+ros2 launch cart_pole_optimal_control cart_pole.launch.py
 
 # Terminal 2
 cd cart_pole_optimal_control/dqn/
 python3 dqn_ros2_evaluate.py
+
+# Terminal 3
+ros2 run cart_pole_optimal_control earthquake_force_generator
 ```
 
 ---
 
 ## Key Findings
 
-1. **Bayesian optimization efficiently explored the 5-dimensional parameter search space** (4 Q values + 1 R value) in 25 evaluations, converging to optimal parameters by iteration 9
-2. **Cart velocity damping (Q_x_dot) showed the strongest positive correlation** (+0.37) with performance in the GP analysis
-3. **Higher control cost (R = 1.88 vs default 0.1) reduced cart displacement by 60%** from 0.6m to 0.242m
-4. **Discrete action spaces fundamentally limited positioning performance** - DQN's bang-bang control (±15N only) could not match LQR's continuous smooth forces
-5. **Optimized LQR achieved 10% longer stability duration and 60% lower cart displacement** compared to assignment default parameters
+1. **Bayesian optimization over a wider search space (Q_thetadot up to 200, R up to 10) found parameters that improved stability from ~7s to ~115s** — a 16x improvement over assignment defaults
+2. **Q_thetadot (186.9) was the dominant parameter** — penalizing angular velocity heavily prevents the momentum buildup that causes sudden failure under large earthquake spikes
+3. **Low R (0.165) was critical for earthquake rejection** — high control cost was the single strongest negative predictor of performance (correlation -0.63)
+4. **The force architecture matters** — fixing the topic collision between earthquake generator and LQR controller (combining rather than overwriting forces) was necessary to get valid results
+5. **Discrete action spaces fundamentally limit positioning performance** — DQN's bang-bang control (±40N only) could not match LQR's continuous proportional forces, despite equal pole angle control
+6. **DQN solved in 120 episodes** after fixing `force_mag` accumulation bug and increasing epsilon decay rate from 0.9999 to 0.995 per step
 
 ---
 
