@@ -77,7 +77,8 @@ class CylinderMission(Node):
 
         self.state = "WAIT_INTRINSICS"
         self.offboard_setpoint_counter = 0
-
+        self.pre_arm_counter = 0
+        self.PRE_ARM_CYCLES = 15
         # Timer for controlling flight logic
         self.timer = self.create_timer(0.1, self.timer_callback)
 
@@ -96,10 +97,18 @@ class CylinderMission(Node):
         # ---------------------------------------------
         # Circle flight parameters
         # ---------------------------------------------
-        self.circle_radius = 15.0
+        #self.circle_radius = 15.0
         self.altitude = -5.0
-        self.circle_speed = -0.02  # radians step per iteration
-        self.theta = 0.0
+        #self.circle_speed = -0.02  # radians step per iteration
+        #self.theta = 0.0
+        self.search_x_min = -10.0
+        self.search_x_max = 10.0
+        self.search_y_min = -10.0
+        self.search_y_max = 10.0
+        self.search_strip_spacing = 6.0
+        self.search_speed_threshold = 0.5 #meters
+        self.search_waypoints = self._generate_search_waypoints()
+        self.search_waypoint_index = 0
 
         # ---------------------------------------------
         # Cylinder detection and measurement
@@ -280,28 +289,52 @@ class CylinderMission(Node):
     # ---------------------------------------------
     # Timer Callback: Main State Machine
     # ---------------------------------------------
+    def _generate_search_waypoints(self):
+        """Generate boustrophedon (lawnmower) search waypoints."""
+        waypoints = []
+        y = 0.0
+        direction = 1
+        while y <= self.search_y_max:
+            if direction == 1:
+                waypoints.append((self.search_x_min, y))
+                waypoints.append((self.search_x_max, y))
+            else:
+                waypoints.append((self.search_x_max, y))
+                waypoints.append((self.search_x_min, y))
+            y += self.search_strip_spacing
+            direction *= -1
+        return waypoints
     def timer_callback(self):
         # Publish offboard control mode each cycle
         self.publish_offboard_control_mode()
 
         # After ~1s, engage offboard + arm (if intrinsics are loaded)
-        if self.offboard_setpoint_counter == 5:
-            if self.state != "WAIT_INTRINSICS":
-                self.engage_offboard_mode()
-                self.arm()
+        #if self.offboard_setpoint_counter == 5:
+            #if self.state != "WAIT_INTRINSICS":
+                #self.engage_offboard_mode()
+                #self.arm()
 
         # State machine
 
-        elif self.state == "WAIT_INTRINSICS":
-            if (self.fx is not None) and (self.fy is not None) and (self.battery_percent is not None):
+        if self.state == "WAIT_INTRINSICS":
+            if self.fx is not None and self.fy is not None:
                 # store the battery now, one time only
                 if self.battery_at_mission_start is None:
                     self.battery_at_mission_start = self.battery_percent
-                    self.get_logger().info(f"Locked battery_at_mission_start: {self.battery_at_mission_start:.4f}")
+                    self.get_logger().info(f"Locked battery_at_mission_start: {self.battery_at_mission_start}")
 
-                self.get_logger().info("Intrinsics and battery OK. Moving to ARM_TAKEOFF.")
-                self.state = "ARM_TAKEOFF"
+                self.get_logger().info("Intrinsics and battery OK. Moving to PRE_ARM.")
                 self.start_time = time.time()
+                self.state = "PRE_ARM"
+        elif self.state == "PRE_ARM":
+            self.publish_trajectory_setpoint(0.0, 0.0, 0.0)
+            self.pre_arm_counter += 1
+            if self.pre_arm_counter >= self.PRE_ARM_CYCLES:
+                self.get_logger().info("Streaming done. Engaging offboard and arming.")
+                self.engage_offboard_mode()
+                time.sleep(0.1)
+                self.arm()
+                self.state = "ARM_TAKEOFF"
 
         elif self.state == "ARM_TAKEOFF":
             if self.takeoff_stage == 0:
@@ -320,7 +353,8 @@ class CylinderMission(Node):
 
             elif self.takeoff_stage == 1:
                 # Stage 2: Move to (15, 0, -5)
-                target = [15.0, 0.0, -5.0]
+                tx, ty = self.search_waypoints[0]
+                target = [tx, ty, -5.0]
                 self.publish_trajectory_setpoint(*target)
 
                 dx = self.position[0] - target[0]
@@ -331,17 +365,24 @@ class CylinderMission(Node):
                 if dist < 0.5:
                     # Set theta based on actual position
                     self.theta = math.atan2(self.position[1], self.position[0])
-                    self.get_logger().info("Reached circle entry point. Switching to CIRCLE.")
+                    self.get_logger().info("Reached search start. Beginning search.")
                     self.state = "CIRCLE"
 
         elif self.state == "CIRCLE":
-            # Circle flight
-            x = self.circle_radius * math.cos(self.theta)
-            y = self.circle_radius * math.sin(self.theta)
-            z = self.altitude
-            self.theta += self.circle_speed
-            self.publish_trajectory_setpoint(x, y, z)
-
+            if self.search_waypoint_index >= len(self.search_waypoints):
+                self.search_waypoint_index = 0
+            tx, ty = self.search_waypoints[self.search_waypoint_index]
+            self.publish_trajectory_setpoint(tx, ty, self.altitude)
+            dist = math.sqrt(
+                (self.position[0] - tx)**2 +
+                (self.position[1] - ty)**2)
+            if dist < self.search_speed_threshold:
+                self.search_waypoint_index += 1
+                self.get_logger().info(
+                    f"Search waypoint {self.search_waypoint_index}/"
+                    f"{len(self.search_waypoints)} reached."
+                )
+            
         elif self.state == "SERVO":
             # Start the timer only once
             if self.servo_start_time is None:
@@ -364,7 +405,7 @@ class CylinderMission(Node):
                     # Reset timer and return to CIRCLE
                     self.servo_start_time = None
                     drone_x, drone_y, _ = self.position
-                    self.theta = math.atan2(drone_y, drone_x)
+                    #self.theta = math.atan2(drone_y, drone_x)
                     self.state = "CIRCLE"
 
                 else:
@@ -435,8 +476,10 @@ class CylinderMission(Node):
 
                         # Recalculate theta based on current position
                         drone_x, drone_y, _ = self.position
-                        self.theta = math.atan2(drone_y, drone_x)
-                        self.get_logger().info(f"Rejoining circle from theta = {self.theta:.2f} rad")
+                        #self.theta = math.atan2(drone_y, drone_x)
+                        self.get_logger().info(f"Resuming search from waypoint {self.search_waypoint_index}/"
+                                               f"{len(self.search_waypoints)}")
+                        
 
                         # Return to circle state
                         self.state = "CIRCLE"
