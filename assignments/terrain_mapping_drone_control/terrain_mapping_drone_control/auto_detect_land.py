@@ -7,12 +7,13 @@ import statistics
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
-
+from px4_msgs.msg import VehicleLocalPosition
 from sensor_msgs.msg import Image, CameraInfo
 from px4_msgs.msg import VehicleOdometry, OffboardControlMode, VehicleCommand, TrajectorySetpoint, BatteryStatus 
 from std_msgs.msg import String
-
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy, qos_profile_sensor_data
 from cv_bridge import CvBridge
+
 import cv2
 import numpy as np
 
@@ -33,6 +34,8 @@ class CylinderMission(Node):
             history=HistoryPolicy.KEEP_LAST,
             depth=1
         )
+      
+
 
         # ---------------------------------------------
         # Publishers
@@ -51,9 +54,12 @@ class CylinderMission(Node):
         # Subscribers
         # ---------------------------------------------
         # Drone odometry
+
         self.vehicle_odometry_sub = self.create_subscription(
-            VehicleOdometry, '/fmu/out/vehicle_odometry',
-            self.odom_cb, qos_profile
+            VehicleLocalPosition,
+            '/fmu/out/vehicle_local_position',
+            self.odom_cb, 
+            qos_profile
         )
 
         # Camera info (for intrinsics)
@@ -116,7 +122,7 @@ class CylinderMission(Node):
         self.measured_cylinders = []
         self.points_buffer = []
         self.sample_threshold = 10  # frames to accumulate for stable measurement
-        self.desired_distance = 15.0
+        self.desired_distance = 8.0
         self.distance_tolerance = 0.3
         self.hover_start_time = None
         self.servo_start_time = None
@@ -172,7 +178,7 @@ class CylinderMission(Node):
     # Callback: Vehicle Odometry
     # ---------------------------------------------
     def odom_cb(self, msg):
-        self.position = [msg.position[0], msg.position[1], msg.position[2]]
+        self.position = [msg.x, msg.y, msg.z]
 
     # ---------------------------------------------
     # Callback: Camera Info (intrinsics)
@@ -262,7 +268,8 @@ class CylinderMission(Node):
                 # Transition to SERVO if we're in CIRCLE
                 if self.state == "CIRCLE":
                     self.get_logger().info("Detected potential cylinder. Switching to SERVO state.")
-                    self.state = "SERVO"
+                    self.hover_start_time = time.time()
+                    self.state = "HOVER"
 
         # Show debug windows
         cv2.imshow("RGB Detection", overlay)
@@ -327,18 +334,18 @@ class CylinderMission(Node):
                 self.start_time = time.time()
                 self.state = "PRE_ARM"
         elif self.state == "PRE_ARM":
-            self.publish_trajectory_setpoint(0.0, 0.0, 0.0)
+            self.publish_trajectory_setpoint(0.0,0.0,0.0)
             self.pre_arm_counter += 1
             if self.pre_arm_counter >= self.PRE_ARM_CYCLES:
-                self.get_logger().info("Streaming done. Engaging offboard and arming.")
-                self.engage_offboard_mode()
-                time.sleep(0.1)
+                self.get_logger().info("Streaming done. Engaging offboard and arming")
+                self.engage_offboard_mode
                 self.arm()
                 self.state = "ARM_TAKEOFF"
-
         elif self.state == "ARM_TAKEOFF":
+            #self.engage_offboard_mode()
+            #self.arm()
+
             if self.takeoff_stage == 0:
-                # Stage 1: Vertical takeoff to (0, 0, -5)
                 target = [0.0, 0.0, -5.0]
                 self.publish_trajectory_setpoint(*target)
 
@@ -348,11 +355,9 @@ class CylinderMission(Node):
                 dist = math.sqrt(dx**2 + dy**2 + dz**2)
 
                 if dist < 0.5:
-                    self.get_logger().info("Vertical takeoff complete. Proceeding to circle entry point.")
+                    self.get_logger().info("Vertical takeoff complete. Continuing with Search.")
                     self.takeoff_stage = 1
-
             elif self.takeoff_stage == 1:
-                # Stage 2: Move to (15, 0, -5)
                 tx, ty = self.search_waypoints[0]
                 target = [tx, ty, -5.0]
                 self.publish_trajectory_setpoint(*target)
@@ -363,12 +368,11 @@ class CylinderMission(Node):
                 dist = math.sqrt(dx**2 + dy**2 + dz**2)
 
                 if dist < 0.5:
-                    # Set theta based on actual position
-                    self.theta = math.atan2(self.position[1], self.position[0])
-                    self.get_logger().info("Reached search start. Beginning search.")
+                    self.get_logger().info(f"Position at transition: {self.position}")
+                    self.get_logger().info("Reached search start. Beginning start.")
                     self.state = "CIRCLE"
-
         elif self.state == "CIRCLE":
+            self.get_logger().info(f"CIRCLE tick, pos = {self.position}, wp_idx={self.search_waypoint_index}")
             if self.search_waypoint_index >= len(self.search_waypoints):
                 self.search_waypoint_index = 0
             tx, ty = self.search_waypoints[self.search_waypoint_index]
@@ -594,7 +598,7 @@ class CylinderMission(Node):
         self.vehicle_cmd_pub.publish(msg)
 
     def arm(self):
-        self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_COMPONENT_ARM_DISARM, param1=1.0)
+        self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_COMPONENT_ARM_DISARM, param1=1.0, param2=21196.0)
         self.get_logger().info("Arm command sent")
 
     def engage_offboard_mode(self):
