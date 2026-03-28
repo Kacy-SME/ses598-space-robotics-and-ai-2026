@@ -1,0 +1,7 @@
+Matches: 67  Negatives: 72
+
+min_entropy_H                 0.4795
+S(p) = min_H - ΔH             0.4337
+min_grad_mag                  0.4263
+-delta_entropy_H              0.4037
+-delta_svd_rank               0.2899
