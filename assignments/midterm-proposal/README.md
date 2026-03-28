@@ -1,7 +1,6 @@
 # T(p)-Gated Sparse Landmark Mapping
 **Reliability-Aware Cross-Domain Terrain Correspondence for Illumination-Invariant Planetary Navigation**
  
-HEART AI Lab, ASU — Kacy Hatfield — Advisor: Dr. Lindsay Sanneman
  
 ---
  
