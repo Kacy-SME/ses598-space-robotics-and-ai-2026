@@ -1,0 +1,11 @@
+Total keypoint pairs: 2912
+Inliers: 275  Outliers: 2637
+
+-delta_entropy_H                  0.4537
+-match_distance                   0.4422
+min_grad_mag                      0.4372
+-delta_svd_rank                   0.4369
+min_sift_response                 0.4160
+S(p) = min_H - ΔH                 0.4158
+min_entropy_H                     0.4035
+-kp_size                          0.3805

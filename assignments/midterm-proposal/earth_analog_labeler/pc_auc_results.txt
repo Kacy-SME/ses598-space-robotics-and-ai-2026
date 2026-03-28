@@ -1,0 +1,12 @@
+Phase Congruency AUC Results
+Pairs: 2912  Inliers: 275  Outliers: 2637
+R(p) = PC_mean + 0.5*PC_iso
+
+min PC_iso                      0.5062
+min R(p)                        0.5040
+R(p) pair score                 0.5032
+-delta_PC_iso                   0.4987
+-delta_PC_mean                  0.4941
+min PC_mean                     0.4929
+-match_distance                 0.4422
+S(p) [old]                      0.4158
