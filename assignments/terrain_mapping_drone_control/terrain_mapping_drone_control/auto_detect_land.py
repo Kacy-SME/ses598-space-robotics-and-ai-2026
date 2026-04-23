@@ -285,19 +285,18 @@ class CylinderMission(Node):
         self.publish_offboard_control_mode()
 
         # After ~1s, engage offboard + arm (if intrinsics are loaded)
-        if self.offboard_setpoint_counter == 5:
-            if self.state != "WAIT_INTRINSICS":
+        if self.offboard_setpoint_counter == 20:
                 self.engage_offboard_mode()
                 self.arm()
 
         # State machine
 
         elif self.state == "WAIT_INTRINSICS":
-            if (self.fx is not None) and (self.fy is not None) and (self.battery_percent is not None):
+            if (self.fx is not None) and (self.fy is not None):
                 # store the battery now, one time only
                 if self.battery_at_mission_start is None:
-                    self.battery_at_mission_start = self.battery_percent
-                    self.get_logger().info(f"Locked battery_at_mission_start: {self.battery_at_mission_start:.4f}")
+                  self.battery_at_mission_start = self.battery_percent
+                  self.get_logger().info(f"Locked battery_at_mission_start: {self.battery_at_mission_start}")
 
                 self.get_logger().info("Intrinsics and battery OK. Moving to ARM_TAKEOFF.")
                 self.state = "ARM_TAKEOFF"
