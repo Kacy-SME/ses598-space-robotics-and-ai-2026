@@ -1,0 +1,8 @@
+#!/bin/sh
+#
+#@name Gazebo x500 gimbal
+#
+# @type Quadrotor
+#
+PX$_SIM_MODEL=${PX4_SIM_MODEL:=x500_gimbal}
+. ${R}etc/init.d-posix/airframes/4001_gz_x500

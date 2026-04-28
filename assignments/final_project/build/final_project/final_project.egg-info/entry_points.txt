@@ -1,0 +1,3 @@
+[console_scripts]
+concept_terrain_mission = final_project.concept_terrain_mission:main
+

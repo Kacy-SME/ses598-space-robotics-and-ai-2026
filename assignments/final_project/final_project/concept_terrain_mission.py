@@ -4,6 +4,8 @@ concept_terrain_mission_v2.py - Simplified version with better ROS2 integration
 """
 
 import math
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = ''
 import time
 import threading
 import numpy as np
@@ -51,8 +53,8 @@ class SparseAutoencoder(nn.Module):
 
 class ConceptTerrainMission(Node):
 
-    GRID_X_MIN, GRID_X_MAX = -40.0, 40.0
-    GRID_Y_MIN, GRID_Y_MAX = -40.0, 40.0
+    GRID_X_MIN, GRID_X_MAX = -20.0, 20.0
+    GRID_Y_MIN, GRID_Y_MAX = -20.0, 20.0
     GRID_STEP = 10.0
     ALTITUDE = -15.0
 
@@ -89,7 +91,10 @@ class ConceptTerrainMission(Node):
         self._img_lock = threading.Lock()
 
         self.offboard_counter = 0
-        self.phase = 'ARM_TAKEOFF'
+        self.phase = 'PRE_ARM'
+        self.pre_arm_counter = 0
+        self.engage_counter = 0
+        self.PRE_ARM_CYCLES = 50
         self.phase1_waypoints = self._gen_waypoints()
         self.phase1_idx = 0
         self.phase1_embeddings = []
@@ -134,9 +139,13 @@ class ConceptTerrainMission(Node):
         return wps
 
     def _load_dinov2(self):
+        import os
+        os.environ['CUDA_VISIBLE_DEVICES'] = ''
         self.get_logger().info('Loading DINOv2...')
         try:
             self.dinov2 = torch.hub.load('facebookresearch/dinov2', 'dinov2_vits14', verbose=False).to(self.device).eval()
+            self.dinov2.eval()
+            self.dinov2 = self.dinov2.to(torch.devices('cpu'))
             self.get_logger().info('DINOv2 loaded ✓')
         except Exception as e:
             self.get_logger().error(f'DINOv2 load failed: {e}')
@@ -180,16 +189,29 @@ class ConceptTerrainMission(Node):
 
     def _timer_cb(self):
         self._pub_offboard()
+        self.offboard_counter +=1
 
-        if self.offboard_counter == 20:
+        if self.phase == 'PRE_ARM':
+            self._pub_traj(0.0, 0.0, 0.0)
+            self.pre_arm_counter += 1
+            if self.pre_arm_counter >= self.PRE_ARM_CYCLES:
+                self.get_logger().info('PRE_ARM -> engaging offboard + arm')
+                self._engage_offboard()
+                self.phase = 'ENGAGING_OFFBOARD'
+                self.engage_counter = 0
+        elif self.phase == 'ENGAGING_OFFBOARD':
+            self._pub_traj(0.0, 0.0, 0.0)
             self._engage_offboard()
-            self._arm()
-
-        self.offboard_counter += 1
+            self.engage_counter += 1
+            if self.engage_counter >= 15:
+                self.get_logger().info('ofboard confirmed -> arming')
+                self._arm()
+                self.phase = 'ARM_TAKEOFF'
+    
 
         # === STATE MACHINE ===
 
-        if self.phase == 'ARM_TAKEOFF':
+        elif self.phase == 'ARM_TAKEOFF':
             target = (0.0, 0.0, self.ALTITUDE)
             self._pub_traj(*target)
             if self._dist(*target) < 1.5:
@@ -299,7 +321,9 @@ class ConceptTerrainMission(Node):
 
     def _pub_offboard(self):
         msg = OffboardControlMode()
-        msg.position = msg.timestamp = True
+        msg.position = True
+        msg.velocity = False
+        msg.acceleration = False
         msg.timestamp = self.get_clock().now().nanoseconds // 1000
         self.offboard_pub.publish(msg)
 
@@ -319,12 +343,13 @@ class ConceptTerrainMission(Node):
         self.cmd_pub.publish(msg)
 
     def _arm(self):
-        self._pub_cmd(VehicleCommand.VEHICLE_CMD_COMPONENT_ARM_DISARM, 1.0)
-        self.get_logger().info('Arm command sent')
+        self._pub_cmd(VehicleCommand.VEHICLE_CMD_COMPONENT_ARM_DISARM, 1.0, 21196.0)
+        self.get_logger().info('Arm command sent (force flag)')
 
     def _engage_offboard(self):
         self._pub_cmd(VehicleCommand.VEHICLE_CMD_DO_SET_MODE, 1.0, 6.0)
         self.get_logger().info('Offboard mode command sent')
+    
 
 
 def main(args=None):
