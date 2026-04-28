@@ -41,7 +41,7 @@ def generate_launch_description():
         arguments=[
             '-file', os.path.join(model_path, 'terrain', 'model.sdf'),
             '-name', 'mars_terrain',
-            '-x', '0', '-y', '0', '-z', '-10',
+            '-x', '0', '-y', '0', '-z', '5',
         ],
         output='screen'
     )
