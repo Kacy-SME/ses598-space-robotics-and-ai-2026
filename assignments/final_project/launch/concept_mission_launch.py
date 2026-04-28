@@ -79,11 +79,18 @@ def generate_launch_description():
         output='screen',
         parameters=[{'use_sim_time': True}],
     )
-
+    viz_node = Node(
+        package='final_project',
+        executable='mission_viz',
+        name='mission_viz',
+        output='screen',
+        parameters=[{'use_sim_time': True}],
+    )
     return LaunchDescription([
         DeclareLaunchArgument('use_sim_time', default_value='True'),
         px4_sitl,
         TimerAction(period=2.0, actions=[spawn_terrain]),
         TimerAction(period=3.0, actions=[bridge]),
         TimerAction(period=5.0, actions=[concept_mission]),
+        TimerAction(period=4.0, actions=[viz_node]),
     ])
