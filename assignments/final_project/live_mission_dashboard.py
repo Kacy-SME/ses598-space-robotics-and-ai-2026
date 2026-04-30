@@ -83,7 +83,7 @@ def build_dashboard():
     plt.style.use('dark_background')
     fig = plt.figure(figsize=(16, 9), facecolor='#0d0d0d')
     fig.suptitle(
-        'SES 598 · Concept-Driven Sparse Landmark Mapping · LIVE',
+        'Concept-Driven Sparse Landmark Mapping · LIVE',
         fontsize=14, color='#F2CC1A', fontweight='bold', y=0.98
     )
 
@@ -155,8 +155,8 @@ def render(fig, ax_status, ax_heat, ax_map, ax_rewards, log):
             f'SAE Concept Activations  [{A_vis.shape[1]} active concepts × {A_vis.shape[0]} patches]',
             color='#888888', fontsize=9, pad=4
         )
-        plt.colorbar(im, ax=ax_heat, fraction=0.015, pad=0.01).ax.tick_params(
-            colors='#666666', labelsize=7)
+        cbar = fig.colorbar(im, ax=ax_heat, fraction=0.015, pad=0.01)
+        cbar.ax.tick_params(colors='#666666', labelsize=7)
     else:
         ax_heat.text(0.5, 0.5, 'Waiting for SAE training…',
                      ha='center', va='center', color='#555555', fontsize=11,

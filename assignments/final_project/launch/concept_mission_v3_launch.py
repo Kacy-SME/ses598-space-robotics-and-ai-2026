@@ -66,7 +66,7 @@ def generate_launch_description():
             ('/mono_camera', '/drone/front_rgb/camera_info'),
             ('/depth_camera', '/drone/front_depth'),
             ('/depth_camera/points', '/drone/front_depth/points'),
-            ('/model/x500_depth_mono_0/odometry_with_covariance', '/fmu/out/vehicle_odometry'),
+            ('/model/x500_depth_mono_0/odometry_with_covariance', '/gz/vehicle_odometry'),
         ],
         output='screen'
     )

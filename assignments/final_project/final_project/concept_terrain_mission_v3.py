@@ -75,7 +75,7 @@ class ConceptTerrainMission(Node):
 
     # Phase 2 landmark guidance
     REWARD_THRESHOLD   = 0.5   # below this is not a landmark
-    EARLY_STOP_PATIENCE = 3    # stop after this many consecutive sub-threshold visits
+    EARLY_STOP_PATIENCE = 8    # stop after this many consecutive sub-threshold visits
 
     def __init__(self):
         super().__init__('concept_terrain_mission')
