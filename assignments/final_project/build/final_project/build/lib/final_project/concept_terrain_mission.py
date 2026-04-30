@@ -4,6 +4,10 @@ concept_terrain_mission_v2.py - Simplified version with better ROS2 integration
 """
 
 import math
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = ''
+import json
+import pathlib
 import time
 import threading
 import numpy as np
@@ -51,8 +55,8 @@ class SparseAutoencoder(nn.Module):
 
 class ConceptTerrainMission(Node):
 
-    GRID_X_MIN, GRID_X_MAX = -40.0, 40.0
-    GRID_Y_MIN, GRID_Y_MAX = -40.0, 40.0
+    GRID_X_MIN, GRID_X_MAX = -20.0, 20.0
+    GRID_Y_MIN, GRID_Y_MAX = -20.0, 20.0
     GRID_STEP = 10.0
     ALTITUDE = -15.0
 
@@ -89,7 +93,10 @@ class ConceptTerrainMission(Node):
         self._img_lock = threading.Lock()
 
         self.offboard_counter = 0
-        self.phase = 'ARM_TAKEOFF'
+        self.phase = 'PRE_ARM'
+        self.pre_arm_counter = 0
+        self.engage_counter = 0
+        self.PRE_ARM_CYCLES = 50
         self.phase1_waypoints = self._gen_waypoints()
         self.phase1_idx = 0
         self.phase1_embeddings = []
@@ -101,6 +108,17 @@ class ConceptTerrainMission(Node):
         self.ucb_grid = None
         self.phase2_idx = None
         self.landmark_map = []
+
+        #logging
+        self._log_path = pathlib.Path('/tmp/mission_log.json')
+        self._mission_log = {
+            'phase1_waypoints': [],
+            'phase1_embeddings_shape': None,
+            'sae_concepts': 0,
+            'concept_activations': [],
+            'phase2_visits': [],
+            'landmarks': [],
+        }
 
         # DINOv2
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -134,9 +152,13 @@ class ConceptTerrainMission(Node):
         return wps
 
     def _load_dinov2(self):
+        import os
+        os.environ['CUDA_VISIBLE_DEVICES'] = ''
         self.get_logger().info('Loading DINOv2...')
         try:
             self.dinov2 = torch.hub.load('facebookresearch/dinov2', 'dinov2_vits14', verbose=False).to(self.device).eval()
+            self.dinov2.eval()
+            self.dinov2 = self.dinov2.to(torch.device('cpu'))
             self.get_logger().info('DINOv2 loaded ✓')
         except Exception as e:
             self.get_logger().error(f'DINOv2 load failed: {e}')
@@ -180,16 +202,29 @@ class ConceptTerrainMission(Node):
 
     def _timer_cb(self):
         self._pub_offboard()
+        self.offboard_counter +=1
 
-        if self.offboard_counter == 20:
+        if self.phase == 'PRE_ARM':
+            self._pub_traj(0.0, 0.0, 0.0)
+            self.pre_arm_counter += 1
+            if self.pre_arm_counter >= self.PRE_ARM_CYCLES:
+                self.get_logger().info('PRE_ARM -> engaging offboard + arm')
+                self._engage_offboard()
+                self.phase = 'ENGAGING_OFFBOARD'
+                self.engage_counter = 0
+        elif self.phase == 'ENGAGING_OFFBOARD':
+            self._pub_traj(0.0, 0.0, 0.0)
             self._engage_offboard()
-            self._arm()
-
-        self.offboard_counter += 1
+            self.engage_counter += 1
+            if self.engage_counter >= 15:
+                self.get_logger().info('ofboard confirmed -> arming')
+                self._arm()
+                self.phase = 'ARM_TAKEOFF'
+    
 
         # === STATE MACHINE ===
 
-        if self.phase == 'ARM_TAKEOFF':
+        elif self.phase == 'ARM_TAKEOFF':
             target = (0.0, 0.0, self.ALTITUDE)
             self._pub_traj(*target)
             if self._dist(*target) < 1.5:
@@ -216,7 +251,13 @@ class ConceptTerrainMission(Node):
                     self.phase1_embeddings.append(emb)
                     self.phase1_positions.append(wp[:2])
                     self.get_logger().info(f'Phase1[{len(self.phase1_embeddings)}] at ({wp[0]:.0f}, {wp[1]:.0f})')
-
+                self._mission_log['phase1_waypoints'].append({
+                    'idx': self.phase1_idx,
+                    'x': float(wp[0]),
+                    'y': float(wp[1]),
+                    'z': float(wp[2]),
+                })
+                self._save_log()
                 self.phase1_idx += 1
                 self._viz_update(f' [Phase1: {len(self.phase1_embeddings)}]')
 
@@ -236,11 +277,29 @@ class ConceptTerrainMission(Node):
                 reward = 0.0
                 if frame is not None:
                     emb = self._embed(frame)
-                    reward = float(self._sae_reward(emb))
+                    reward, h = self._sae_reward(emb)
+                    reward = float(reward)
                     if reward > 0.5:
                         self.landmark_map.append({'pos': wp[:2], 'reward': reward})
                         self.get_logger().info(f'Phase2[{self.phase2_idx}] R={reward:.3f} → landmark')
-
+                dominant_concept = int(np.argmax(h[self.selective_idx])) if self.selective_idx is not None and len(self.selective_idx) > 0 else 0
+                is_lm = reward > 0.5
+                self._mission_log['phase2_visits'].append({
+                    'idx': self.phase2_idx,
+                    'x': float(wp[0]),
+                    'y': float(wp[1]),
+                    'reward': float(reward),
+                    'dominant_concept': dominant_concept,
+                    'is_landmark': is_lm,
+                })
+                if is_lm:
+                    self._mission_log['landmarks'].append({
+                        'x': float(wp[0]),
+                        'y': float(wp[1]),
+                        'reward': float(reward),
+                        'dominant_concept': dominant_concept,
+                    })
+                self._save_log()
                 self.phase2_idx = (self.phase2_idx + 1) % len(self.ucb_grid)
                 if self.phase2_idx == 0:
                     self.get_logger().info(f'Phase 2 complete: {len(self.landmark_map)} landmarks')
@@ -283,6 +342,16 @@ class ConceptTerrainMission(Node):
         self.ucb_grid = self.phase1_waypoints
         self.phase2_idx = 0
         self.phase = 'PHASE2_FLY'
+        self._mission_log['phase1_embeddings_shape'] = list(embs.shape)
+        self._mission_log['sae_concepts'] = len(self.selective_idx)
+        acts = []
+        for emb in embs:
+            t = torch.tensor(emb, dtype=torch.float32)
+            with torch.no_grad():
+                _, hidden = self.sae(t.unsqueeze(0))
+            acts.append(hidden.squeeze(0).tolist())
+        self._mission_log['concept_activations'] = acts
+        self._save_log()
         self.get_logger().info('→ PHASE2_FLY')
 
     def _sae_reward(self, emb):
@@ -291,7 +360,7 @@ class ConceptTerrainMission(Node):
         t = torch.tensor(emb, dtype=torch.float32).unsqueeze(0).to(self.device)
         with torch.no_grad():
             h = self.sae.encode(t).squeeze(0).cpu().numpy()
-        return float(h[self.selective_idx].sum())
+        return float(h[self.selective_idx].sum()), h.copy()
 
     def _dist(self, tx, ty, tz):
         dx, dy, dz = self.position[0] - tx, self.position[1] - ty, self.position[2] - tz
@@ -299,7 +368,9 @@ class ConceptTerrainMission(Node):
 
     def _pub_offboard(self):
         msg = OffboardControlMode()
-        msg.position = msg.timestamp = True
+        msg.position = True
+        msg.velocity = False
+        msg.acceleration = False
         msg.timestamp = self.get_clock().now().nanoseconds // 1000
         self.offboard_pub.publish(msg)
 
@@ -319,14 +390,17 @@ class ConceptTerrainMission(Node):
         self.cmd_pub.publish(msg)
 
     def _arm(self):
-        self._pub_cmd(VehicleCommand.VEHICLE_CMD_COMPONENT_ARM_DISARM, 1.0)
-        self.get_logger().info('Arm command sent')
+        self._pub_cmd(VehicleCommand.VEHICLE_CMD_COMPONENT_ARM_DISARM, 1.0, 21196.0)
+        self.get_logger().info('Arm command sent (force flag)')
 
     def _engage_offboard(self):
         self._pub_cmd(VehicleCommand.VEHICLE_CMD_DO_SET_MODE, 1.0, 6.0)
         self.get_logger().info('Offboard mode command sent')
+    
 
-
+    def _save_log(self):
+        with open(self._log_path, 'w') as f:
+                json.dump(self._mission_log, f, indent=2)
 def main(args=None):
     rclpy.init(args=args)
     node = ConceptTerrainMission()

@@ -29,7 +29,7 @@ def generate_launch_description():
 
     # PX4 SITL
     px4_sitl = ExecuteProcess(
-        cmd=['make', 'px4_sitl', 'gz_x500_gimbal'],
+        cmd=['make', 'px4_sitl', 'gz_x500_depth_mono'],
         cwd=os.path.expanduser('~/PX4-Autopilot'),
         output='screen'
     )
@@ -41,7 +41,7 @@ def generate_launch_description():
         arguments=[
             '-file', os.path.join(model_path, 'terrain', 'model.sdf'),
             '-name', 'mars_terrain',
-            '-x', '0', '-y', '0', '-z', '0',
+            '-x', '0', '-y', '0', '-z', '5',
         ],
         output='screen'
     )
@@ -53,21 +53,20 @@ def generate_launch_description():
         name='bridge',
         parameters=[{'use_sim_time': True}],
         arguments=[
-            '/world/default/model/x500_gimbal_0/link/camera_link/sensor/camera/image'
-            '@sensor_msgs/msg/Image[gz.msgs.Image',
-            '/world/default/model/x500_gimbal_0/link/camera_link/sensor/camera/camera_info'
-            '@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo',
-            '/model/x500_gimbal_0/odometry_with_covariance'
-            '@nav_msgs/msg/Odometry[gz.msgs.Odometry',
-            '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
+            '/mono_camera@sensor_msgs/msg/Image@gz.msgs.Image',
+            '/mono_camera@sensor_msgs/msg/CameraInfo@gz.msgs.CameraInfo',
+            '/depth_camera@sensor_msgs/msg/Image@gz.msgs.Image',
+            '/depth_camera/points@sensor_msgs/msg/PointCloud2@gz.msgs.PointCloudPacked',
+            '/clock@rosgraph_msgs/msg/Clock@gz.msgs.Clock',
+            '/model/x500_depth_mono_0/odometry_with_covariance'
+            '@nav_msgs/msg/Odometry@gz.msgs.OdometryWithCovariance',
         ],
         remappings=[
-            ('/world/default/model/x500_gimbal_0/link/camera_link/sensor/camera/image',
-             '/drone/front_rgb'),
-            ('/world/default/model/x500_gimbal_0/link/camera_link/sensor/camera/camera_info',
-             '/drone/front_depth/camera_info'),
-            ('/model/x500_gimbal_0/odometry_with_covariance',
-             '/fmu/out/vehicle_odometry'),
+            ('/mono_camera', '/drone/front_rgb'),
+            ('/mono_camera', '/drone/front_rgb/camera_info'),
+            ('/depth_camera', '/drone/front_depth'),
+            ('/depth_camera/points', '/drone/front_depth/points'),
+            ('/model/x500_depth_mono_0/odometry_with_covariance', '/fmu/out/vehicle_odometry'),
         ],
         output='screen'
     )
@@ -80,11 +79,18 @@ def generate_launch_description():
         output='screen',
         parameters=[{'use_sim_time': True}],
     )
-
+    viz_node = Node(
+        package='final_project',
+        executable='mission_viz',
+        name='mission_viz',
+        output='screen',
+        parameters=[{'use_sim_time': True}],
+    )
     return LaunchDescription([
         DeclareLaunchArgument('use_sim_time', default_value='True'),
         px4_sitl,
         TimerAction(period=2.0, actions=[spawn_terrain]),
         TimerAction(period=3.0, actions=[bridge]),
         TimerAction(period=5.0, actions=[concept_mission]),
+        TimerAction(period=4.0, actions=[viz_node]),
     ])

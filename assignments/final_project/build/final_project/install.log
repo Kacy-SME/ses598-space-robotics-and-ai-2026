@@ -1,12 +1,17 @@
 /root/ses598-space-robotics-and-ai-2026/assignments/final_project/install/final_project/lib/python3.10/site-packages/final_project/setup.py
 /root/ses598-space-robotics-and-ai-2026/assignments/final_project/install/final_project/lib/python3.10/site-packages/final_project/concept_terrain_mission.py
+/root/ses598-space-robotics-and-ai-2026/assignments/final_project/install/final_project/lib/python3.10/site-packages/final_project/mission_viz_node.py
 /root/ses598-space-robotics-and-ai-2026/assignments/final_project/install/final_project/lib/python3.10/site-packages/final_project/__init__.py
+/root/ses598-space-robotics-and-ai-2026/assignments/final_project/install/final_project/lib/python3.10/site-packages/final_project/concept_terrain_mission_v3.py
 /root/ses598-space-robotics-and-ai-2026/assignments/final_project/install/final_project/lib/python3.10/site-packages/final_project/__pycache__/setup.cpython-310.pyc
 /root/ses598-space-robotics-and-ai-2026/assignments/final_project/install/final_project/lib/python3.10/site-packages/final_project/__pycache__/concept_terrain_mission.cpython-310.pyc
+/root/ses598-space-robotics-and-ai-2026/assignments/final_project/install/final_project/lib/python3.10/site-packages/final_project/__pycache__/mission_viz_node.cpython-310.pyc
 /root/ses598-space-robotics-and-ai-2026/assignments/final_project/install/final_project/lib/python3.10/site-packages/final_project/__pycache__/__init__.cpython-310.pyc
+/root/ses598-space-robotics-and-ai-2026/assignments/final_project/install/final_project/lib/python3.10/site-packages/final_project/__pycache__/concept_terrain_mission_v3.cpython-310.pyc
 /root/ses598-space-robotics-and-ai-2026/assignments/final_project/install/final_project/share/ament_index/resource_index/packages/final_project
 /root/ses598-space-robotics-and-ai-2026/assignments/final_project/install/final_project/share/final_project/package.xml
 /root/ses598-space-robotics-and-ai-2026/assignments/final_project/install/final_project/share/final_project/launch/concept_mission_launch.py
+/root/ses598-space-robotics-and-ai-2026/assignments/final_project/install/final_project/share/final_project/launch/concept_mission_v3_launch.py
 /root/ses598-space-robotics-and-ai-2026/assignments/final_project/install/final_project/share/final_project/models/terrain/model.sdf
 /root/ses598-space-robotics-and-ai-2026/assignments/final_project/install/final_project/share/final_project/models/terrain/model.config
 /root/ses598-space-robotics-and-ai-2026/assignments/final_project/install/final_project/share/final_project/models/terrain/meshes/artburysol175.stl
@@ -17,4 +22,6 @@
 /root/ses598-space-robotics-and-ai-2026/assignments/final_project/install/final_project/lib/python3.10/site-packages/final_project-0.0.1-py3.10.egg-info/requires.txt
 /root/ses598-space-robotics-and-ai-2026/assignments/final_project/install/final_project/lib/python3.10/site-packages/final_project-0.0.1-py3.10.egg-info/zip-safe
 /root/ses598-space-robotics-and-ai-2026/assignments/final_project/install/final_project/lib/python3.10/site-packages/final_project-0.0.1-py3.10.egg-info/top_level.txt
-/root/ses598-space-robotics-and-ai-2026/assignments/final_project/install/final_project/bin/concept_terrain_mission
+/root/ses598-space-robotics-and-ai-2026/assignments/final_project/install/final_project/lib/final_project/concept_terrain_mission
+/root/ses598-space-robotics-and-ai-2026/assignments/final_project/install/final_project/lib/final_project/concept_terrain_mission_v3
+/root/ses598-space-robotics-and-ai-2026/assignments/final_project/install/final_project/lib/final_project/mission_viz

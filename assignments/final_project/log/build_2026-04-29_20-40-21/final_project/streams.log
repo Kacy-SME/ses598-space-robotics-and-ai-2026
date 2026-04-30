@@ -1,0 +1,31 @@
+[1.754s] Invoking command in '/root/ses598-space-robotics-and-ai-2026/assignments/final_project': PYTHONPATH=/root/ses598-space-robotics-and-ai-2026/assignments/final_project/build/final_project/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/root/ses598-space-robotics-and-ai-2026/assignments/final_project/install/final_project/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base build/final_project build --build-base /root/ses598-space-robotics-and-ai-2026/assignments/final_project/build/final_project/build install --record /root/ses598-space-robotics-and-ai-2026/assignments/final_project/build/final_project/install.log --single-version-externally-managed install_data
+[2.281s] running egg_info
+[2.281s] writing build/final_project/final_project.egg-info/PKG-INFO
+[2.282s] writing dependency_links to build/final_project/final_project.egg-info/dependency_links.txt
+[2.282s] writing entry points to build/final_project/final_project.egg-info/entry_points.txt
+[2.282s] writing requirements to build/final_project/final_project.egg-info/requires.txt
+[2.282s] writing top-level names to build/final_project/final_project.egg-info/top_level.txt
+[2.285s] reading manifest file 'build/final_project/final_project.egg-info/SOURCES.txt'
+[2.287s] writing manifest file 'build/final_project/final_project.egg-info/SOURCES.txt'
+[2.303s] running build
+[2.303s] running build_py
+[2.304s] copying final_project/concept_terrain_mission.py -> /root/ses598-space-robotics-and-ai-2026/assignments/final_project/build/final_project/build/lib/final_project
+[2.304s] copying final_project/mission_viz_node.py -> /root/ses598-space-robotics-and-ai-2026/assignments/final_project/build/final_project/build/lib/final_project
+[2.305s] running install
+[2.306s] running install_lib
+[2.308s] copying /root/ses598-space-robotics-and-ai-2026/assignments/final_project/build/final_project/build/lib/final_project/concept_terrain_mission.py -> /root/ses598-space-robotics-and-ai-2026/assignments/final_project/install/final_project/lib/python3.10/site-packages/final_project
+[2.308s] copying /root/ses598-space-robotics-and-ai-2026/assignments/final_project/build/final_project/build/lib/final_project/mission_viz_node.py -> /root/ses598-space-robotics-and-ai-2026/assignments/final_project/install/final_project/lib/python3.10/site-packages/final_project
+[2.309s] byte-compiling /root/ses598-space-robotics-and-ai-2026/assignments/final_project/install/final_project/lib/python3.10/site-packages/final_project/concept_terrain_mission.py to concept_terrain_mission.cpython-310.pyc
+[2.317s] byte-compiling /root/ses598-space-robotics-and-ai-2026/assignments/final_project/install/final_project/lib/python3.10/site-packages/final_project/mission_viz_node.py to mission_viz_node.cpython-310.pyc
+[2.319s] running install_data
+[2.320s] copying launch/concept_mission_launch.py -> /root/ses598-space-robotics-and-ai-2026/assignments/final_project/install/final_project/share/final_project/launch
+[2.320s] copying launch/concept_mission_v3_launch.py -> /root/ses598-space-robotics-and-ai-2026/assignments/final_project/install/final_project/share/final_project/launch
+[2.320s] running install_egg_info
+[2.324s] removing '/root/ses598-space-robotics-and-ai-2026/assignments/final_project/install/final_project/lib/python3.10/site-packages/final_project-0.0.1-py3.10.egg-info' (and everything under it)
+[2.336s] Copying build/final_project/final_project.egg-info to /root/ses598-space-robotics-and-ai-2026/assignments/final_project/install/final_project/lib/python3.10/site-packages/final_project-0.0.1-py3.10.egg-info
+[2.339s] running install_scripts
+[2.387s] Installing concept_terrain_mission script to /root/ses598-space-robotics-and-ai-2026/assignments/final_project/install/final_project/lib/final_project
+[2.388s] Installing concept_terrain_mission_v3 script to /root/ses598-space-robotics-and-ai-2026/assignments/final_project/install/final_project/lib/final_project
+[2.388s] Installing mission_viz script to /root/ses598-space-robotics-and-ai-2026/assignments/final_project/install/final_project/lib/final_project
+[2.388s] writing list of installed files to '/root/ses598-space-robotics-and-ai-2026/assignments/final_project/build/final_project/install.log'
+[2.433s] Invoked command in '/root/ses598-space-robotics-and-ai-2026/assignments/final_project' returned '0': PYTHONPATH=/root/ses598-space-robotics-and-ai-2026/assignments/final_project/build/final_project/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/root/ses598-space-robotics-and-ai-2026/assignments/final_project/install/final_project/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base build/final_project build --build-base /root/ses598-space-robotics-and-ai-2026/assignments/final_project/build/final_project/build install --record /root/ses598-space-robotics-and-ai-2026/assignments/final_project/build/final_project/install.log --single-version-externally-managed install_data

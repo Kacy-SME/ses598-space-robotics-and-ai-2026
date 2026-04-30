@@ -1,4 +1,5 @@
 package.xml
+setup.cfg
 setup.py
 build/final_project/final_project.egg-info/PKG-INFO
 build/final_project/final_project.egg-info/SOURCES.txt
@@ -9,8 +10,11 @@ build/final_project/final_project.egg-info/top_level.txt
 build/final_project/final_project.egg-info/zip-safe
 final_project/__init__.py
 final_project/concept_terrain_mission.py
+final_project/concept_terrain_mission_v3.py
+final_project/mission_viz_node.py
 final_project/setup.py
 launch/concept_mission_launch.py
+launch/concept_mission_v3_launch.py
 models/terrain/model.config
 models/terrain/model.sdf
 models/terrain/meshes/artburysol175.stl

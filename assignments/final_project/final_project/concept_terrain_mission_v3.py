@@ -37,7 +37,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import transforms
 
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
 
 # ── SAE ───────────────────────────────────────────────────────────────────────
@@ -68,10 +68,10 @@ class SparseAutoencoder(nn.Module):
 
 class ConceptTerrainMission(Node):
 
-    GRID_X_MIN, GRID_X_MAX = -20.0, 20.0
-    GRID_Y_MIN, GRID_Y_MAX = -20.0, 20.0
-    GRID_STEP   = 10.0
-    ALTITUDE    = -15.0
+    GRID_X_MIN, GRID_X_MAX = -12.0, 11.0
+    GRID_Y_MIN, GRID_Y_MAX = -10.0, 10.0
+    GRID_STEP   = 5.0
+    ALTITUDE    = -5.0
 
     # Phase 2 landmark guidance
     REWARD_THRESHOLD   = 0.5   # below this is not a landmark
@@ -206,31 +206,33 @@ class ConceptTerrainMission(Node):
     # ── Viz ───────────────────────────────────────────────────────────────────
 
     def _init_viz(self):
-        plt.ion()
-        self.fig, self.axes = plt.subplots(1, 3, figsize=(15, 5))
-        for ax in self.axes:
-            ax.text(0.5, 0.5, 'Waiting...', ha='center', va='center', transform=ax.transAxes)
-        plt.tight_layout()
-        plt.pause(0.01)
+        #plt.ion()
+        #self.fig, self.axes = plt.subplots(1, 3, figsize=(15, 5))
+        #for ax in self.axes:
+         #   ax.text(0.5, 0.5, 'Waiting...', ha='center', va='center', transform=ax.transAxes)
+        #plt.tight_layout()
+        #plt.pause(0.01)
+        pass
 
     def _viz_update(self, suffix=''):
-        for ax in self.axes:
-            ax.cla()
-        self.axes[0].set_title(f'Phase: {self.phase}')
-        self.axes[1].set_title(f'Landmarks: {len(self.landmark_map)}')
-        self.axes[2].set_title(f'Patches: {len(self.phase1_embeddings)}{suffix}')
+        #for ax in self.axes:
+           # ax.cla()
+        #self.axes[0].set_title(f'Phase: {self.phase}')
+        #self.axes[1].set_title(f'Landmarks: {len(self.landmark_map)}')
+        #self.axes[2].set_title(f'Patches: {len(self.phase1_embeddings)}{suffix}')
 
         # Plot landmark positions if any
-        if self.landmark_map:
-            xs = [l['pos'][0] for l in self.landmark_map]
-            ys = [l['pos'][1] for l in self.landmark_map]
-            rs = [l['reward']  for l in self.landmark_map]
-            sc = self.axes[1].scatter(xs, ys, c=rs, cmap='hot', vmin=0, vmax=1, s=80)
-            self.axes[1].set_xlim(self.GRID_X_MIN - 5, self.GRID_X_MAX + 5)
-            self.axes[1].set_ylim(self.GRID_Y_MIN - 5, self.GRID_Y_MAX + 5)
-            self.fig.colorbar(sc, ax=self.axes[1], label='reward')
+        #if self.landmark_map:
+        #    xs = [l['pos'][0] for l in self.landmark_map]
+         #   ys = [l['pos'][1] for l in self.landmark_map]
+         #   rs = [l['reward']  for l in self.landmark_map]
+         #   sc = self.axes[1].scatter(xs, ys, c=rs, cmap='hot', vmin=0, vmax=1, s=80)
+          #  self.axes[1].set_xlim(self.GRID_X_MIN - 5, self.GRID_X_MAX + 5)
+          #  self.axes[1].set_ylim(self.GRID_Y_MIN - 5, self.GRID_Y_MAX + 5)
+          #  self.fig.colorbar(sc, ax=self.axes[1], label='reward')
 
-        plt.pause(0.001)
+       # plt.pause(0.001)
+       pass
 
     # ── Main timer callback ───────────────────────────────────────────────────
 
@@ -386,7 +388,6 @@ class ConceptTerrainMission(Node):
         elif self.phase == 'DONE':
             self._pub_traj(0.0, 0.0, self.ALTITUDE)
 
-        self._viz_update()
 
     # ── SAE training + Phase 2 ranking ────────────────────────────────────────
 
@@ -467,7 +468,7 @@ class ConceptTerrainMission(Node):
         t = torch.tensor(emb, dtype=torch.float32).unsqueeze(0).to(self.device)
         with torch.no_grad():
             h = self.sae.encode(t).squeeze(0).cpu().numpy()
-        return float(h[self.selective_idx].sum()), h.copy()
+        return float(h[self.selective_idx].mean()), h.copy()
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 

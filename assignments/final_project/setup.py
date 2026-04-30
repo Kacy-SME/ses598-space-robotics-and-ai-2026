@@ -9,7 +9,8 @@ setup(
     data_files=[
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        ('share/' + package_name + '/launch', ['launch/concept_mission_launch.py']),
+        ('share/' + package_name + '/launch', ['launch/concept_mission_launch.py',
+                                               'launch/concept_mission_v3_launch.py']),
         ('share/' + package_name + '/models/terrain', 
          ['models/terrain/model.sdf', 'models/terrain/model.config']),
         ('share/' + package_name + '/models/terrain/meshes', 
@@ -25,6 +26,7 @@ setup(
         'console_scripts': [
             'concept_terrain_mission = final_project.concept_terrain_mission:main',
             'mission_viz = final_project.mission_viz_node:main',
+            'concept_terrain_mission_v3 = final_project.concept_terrain_mission_v3:main',
         ],
     },
 )
