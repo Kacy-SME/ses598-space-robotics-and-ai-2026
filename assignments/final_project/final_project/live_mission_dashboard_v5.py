@@ -75,7 +75,7 @@ def build_dashboard():
     plt.style.use('dark_background')
     fig = plt.figure(figsize=(18, 10), facecolor='#0d0d0d')
     fig.suptitle(
-        'SES 598 · SAE Concept Terrain Mission v5 · Greedy → Entropy · LIVE',
+        'SAE Concept Terrain Mission v5 · Greedy → Entropy · LIVE',
         fontsize=13, color='#F2CC1A', fontweight='bold', y=0.98)
 
     gs = gridspec.GridSpec(

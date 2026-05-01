@@ -11,7 +11,9 @@ setup(
         ('share/' + package_name, ['package.xml']),
         ('share/' + package_name + '/launch', ['launch/concept_mission_launch.py',
                                                'launch/concept_mission_v3_launch.py',
-                                               'launch/concept_mission_v4_launch.py']),
+                                               'launch/concept_mission_v4_launch.py',
+                                               'launch/concept_mission_v5_launch.py',
+                                               ]),
         ('share/' + package_name + '/models/terrain', 
          ['models/terrain/model.sdf', 'models/terrain/model.config']),
         ('share/' + package_name + '/models/terrain/meshes', 
@@ -29,6 +31,7 @@ setup(
             'mission_viz = final_project.mission_viz_node:main',
             'concept_terrain_mission_v3 = final_project.concept_terrain_mission_v3:main',
             'concept_terrain_mission_v4 = final_project.concept_terrain_mission_v4:main',
+            'concept_terrain_mission_v5 = final_project.concept_terrain_mission_v5:main',
         ],
     },
 )
