@@ -23,7 +23,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
-LOG_V3   = pathlib.Path('/tmp/mission_log.json')
+LOG_V3   = pathlib.Path('/tmp/mission_log_v3_clean.json')
 LOG_V4   = pathlib.Path('/tmp/mission_log_v4.json')
 OUT_PATH = pathlib.Path('/tmp/policy_comparison.png')
 
