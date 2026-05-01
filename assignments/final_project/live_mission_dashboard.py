@@ -217,7 +217,7 @@ def render(fig, ax_status, ax_heat, ax_map, ax_rewards, log):
 
     # ── Panel 3: Phase 2 reward bars ─────────────────────────────────────────
     if visits:
-        idxs    = [v['idx'] for v in visits]
+        idxs    = [v.get('idx', v.get('step', i)) for i, v in enumerate(visits)]
         rewards = [v['reward'] for v in visits]
         colors  = [('#7DDA2D' if r > REWARD_THRESHOLD else '#444444') for r in rewards]
         ax_rewards.bar(idxs, rewards, color=colors, width=0.8)
