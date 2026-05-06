@@ -32,7 +32,7 @@ The same SAE drives both phases. The divergence in flight behavior is the steera
 **GPU not required** — DINOv2 inference runs on CPU in the simulation environment.
 
 ---
-
+![Mission Complete Dashboard](mission_frames/v5_dashboard_final.png)
 ## Repository Structure
 
 ```
@@ -54,8 +54,10 @@ assignments/final_project/
 ---
 
 ## Pipeline
-
+!(phase1_boustrophedon.png)
+!(phase2_rewards.png)
 ```
+
 Phase 1: Boustrophedon Survey
   └─ 30 waypoints, 25×20 m footprint, 5 m spacing, altitude 5 m
   └─ DINOv2-S CLS token embedding (384-dim) at each waypoint
