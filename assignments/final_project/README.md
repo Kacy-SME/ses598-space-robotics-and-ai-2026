@@ -32,7 +32,7 @@ The same SAE drives both phases. The divergence in flight behavior is the steera
 **GPU not required** — DINOv2 inference runs on CPU in the simulation environment.
 
 ---
-![Mission Complete Dashboard](mission_frames/v5_dashboard_final.png)
+![Mission Complete Dashboard](v5_dashboard_final.png)
 ## Repository Structure
 
 ```
